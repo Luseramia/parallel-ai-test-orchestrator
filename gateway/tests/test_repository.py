@@ -232,6 +232,84 @@ class RepositoryTests(unittest.TestCase):
         self.assertEqual(1, job.version)
         self.assertEqual({"evt_first_writer"}, event_ids)
 
+    def test_k8s_job_bookkeeping_does_not_invalidate_runner_callback(self) -> None:
+        job_id = self._persist_job()
+        callback_session = self.sessions()
+        try:
+            callback_repository = TestJobRepository(callback_session)
+            callback_job = callback_repository.get(job_id)
+
+            with self.sessions() as dispatcher_session:
+                recorded = TestJobRepository(
+                    dispatcher_session
+                ).set_latest_k8s_job(
+                    job_id=job_id,
+                    k8s_job_name="codex-prepare-race-regression",
+                    expected_statuses={JobStatus.PREPARE_QUEUED},
+                    expected_prepare_attempt=1,
+                )
+                dispatcher_session.commit()
+
+            transitioned, created = callback_repository.record_event(
+                event_id="evt_callback_after_dispatch_metadata",
+                job_id=job_id,
+                expected_version=callback_job.version,
+                attempt=1,
+                phase=EventPhase.PREPARE,
+                to_status=JobStatus.PREPARING,
+                occurred_at=NOW,
+            )
+            callback_session.commit()
+        finally:
+            callback_session.close()
+
+        self.assertTrue(recorded)
+        self.assertTrue(created)
+        self.assertEqual(JobStatus.PREPARING, transitioned.status)
+        self.assertEqual(1, transitioned.version)
+        self.assertEqual(
+            "codex-prepare-race-regression", transitioned.latest_k8s_job_name
+        )
+
+    def test_stale_dispatch_metadata_cannot_overwrite_a_later_phase(self) -> None:
+        job_id = self._persist_job()
+        with self.sessions() as session:
+            repository = TestJobRepository(session)
+            preparing, _ = repository.record_event(
+                event_id="evt_prepare_started_before_stale_dispatch",
+                job_id=job_id,
+                expected_version=0,
+                attempt=1,
+                phase=EventPhase.PREPARE,
+                to_status=JobStatus.PREPARING,
+                occurred_at=NOW,
+            )
+            repository.record_event(
+                event_id="evt_prepare_finished_before_stale_dispatch",
+                job_id=job_id,
+                expected_version=preparing.version,
+                attempt=1,
+                phase=EventPhase.PREPARE,
+                to_status=JobStatus.WAITING_FOR_CODE,
+                occurred_at=NOW,
+            )
+            session.commit()
+
+        with self.sessions() as session:
+            recorded = TestJobRepository(session).set_latest_k8s_job(
+                job_id=job_id,
+                k8s_job_name="stale-prepare-job",
+                expected_statuses={JobStatus.PREPARE_QUEUED, JobStatus.PREPARING},
+                expected_prepare_attempt=1,
+            )
+            session.commit()
+
+        with self.sessions() as session:
+            job = TestJobRepository(session).get(job_id)
+        self.assertFalse(recorded)
+        self.assertIsNone(job.latest_k8s_job_name)
+        self.assertEqual(2, job.version)
+
     def test_generic_idempotency_key_detects_payload_conflict(self) -> None:
         with self.sessions() as session:
             repository = TestJobRepository(session)

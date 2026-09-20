@@ -143,13 +143,21 @@ class JobDispatcher:
             name = self._launcher.launch_prepare(launch)
             with self._session_factory() as session:
                 repository = TestJobRepository(session)
-                job = repository.get(launch.job_id)
-                repository.set_latest_k8s_job(
-                    job_id=job.id,
-                    expected_version=job.version,
+                recorded = repository.set_latest_k8s_job(
+                    job_id=launch.job_id,
                     k8s_job_name=name,
+                    expected_statuses={
+                        JobStatus.PREPARE_QUEUED,
+                        JobStatus.PREPARING,
+                    },
+                    expected_prepare_attempt=1,
                 )
                 session.commit()
+                if not recorded:
+                    logger.info(
+                        "ignored stale prepare dispatch metadata",
+                        extra={"job_id": launch.job_id, "k8s_job_name": name},
+                    )
         except Exception:
             logger.exception(
                 "prepare job dispatch failed", extra={"job_id": launch.job_id}
@@ -161,13 +169,22 @@ class JobDispatcher:
             name = self._launcher.launch_generate(launch)
             with self._session_factory() as session:
                 repository = TestJobRepository(session)
-                job = repository.get(launch.job_id)
-                repository.set_latest_k8s_job(
-                    job_id=job.id,
-                    expected_version=job.version,
+                recorded = repository.set_latest_k8s_job(
+                    job_id=launch.job_id,
                     k8s_job_name=name,
+                    expected_statuses={
+                        JobStatus.VERIFY_QUEUED,
+                        JobStatus.GENERATING_TESTS,
+                    },
+                    expected_verify_attempt=launch.attempt,
+                    expected_code_sha=launch.code_sha,
                 )
                 session.commit()
+                if not recorded:
+                    logger.info(
+                        "ignored stale generate dispatch metadata",
+                        extra={"job_id": launch.job_id, "k8s_job_name": name},
+                    )
         except Exception:
             logger.exception(
                 "generate job dispatch failed", extra={"job_id": launch.job_id}
@@ -179,13 +196,19 @@ class JobDispatcher:
             name = self._launcher.launch_test(launch)
             with self._session_factory() as session:
                 repository = TestJobRepository(session)
-                job = repository.get(launch.job_id)
-                repository.set_latest_k8s_job(
-                    job_id=job.id,
-                    expected_version=job.version,
+                recorded = repository.set_latest_k8s_job(
+                    job_id=launch.job_id,
                     k8s_job_name=name,
+                    expected_statuses={JobStatus.TEST_QUEUED, JobStatus.TESTING},
+                    expected_verify_attempt=launch.attempt,
+                    expected_code_sha=launch.code_sha,
                 )
                 session.commit()
+                if not recorded:
+                    logger.info(
+                        "ignored stale test dispatch metadata",
+                        extra={"job_id": launch.job_id, "k8s_job_name": name},
+                    )
         except Exception:
             logger.exception(
                 "test job dispatch failed", extra={"job_id": launch.job_id}

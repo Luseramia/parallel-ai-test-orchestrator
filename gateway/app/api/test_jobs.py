@@ -162,7 +162,9 @@ async def upload_runner_artifact(
 ) -> dict[str, object]:
     expected_prefix = f"jobs/{job_id}/"
     if not object_key.startswith(expected_prefix):
-        raise HTTPException(status_code=403, detail="artifact key does not belong to job")
+        raise HTTPException(
+            status_code=403, detail="artifact key does not belong to job"
+        )
     try:
         stored = request.app.state.artifact_store.put_bytes(
             object_key, await request.body()
@@ -185,7 +187,9 @@ def download_runner_artifact(
 ) -> Response:
     expected_prefix = f"jobs/{job_id}/"
     if not object_key.startswith(expected_prefix):
-        raise HTTPException(status_code=403, detail="artifact key does not belong to job")
+        raise HTTPException(
+            status_code=403, detail="artifact key does not belong to job"
+        )
     try:
         content = request.app.state.artifact_store.read_bytes(object_key)
     except ArtifactError as error:

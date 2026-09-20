@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Collection
 from datetime import UTC, datetime
 from typing import Any
 
@@ -323,23 +324,43 @@ class TestJobRepository:
         )
 
     def set_latest_k8s_job(
-        self, *, job_id: str, expected_version: int, k8s_job_name: str
-    ) -> TestJob:
+        self,
+        *,
+        job_id: str,
+        k8s_job_name: str,
+        expected_statuses: Collection[JobStatus],
+        expected_prepare_attempt: int | None = None,
+        expected_verify_attempt: int | None = None,
+        expected_code_sha: str | None = None,
+    ) -> bool:
+        """Record dispatch metadata only while the launch is still current.
+
+        The Kubernetes name is bookkeeping rather than a state transition. It
+        must not advance `version` or `updated_at`: doing so can invalidate a
+        runner callback that already read the current state-machine version,
+        and can also extend the reconciliation timeout for the active phase.
+        """
+
+        conditions = [
+            TestJobRow.id == job_id,
+            TestJobRow.status.in_([status.value for status in expected_statuses]),
+        ]
+        if expected_prepare_attempt is not None:
+            conditions.append(
+                TestJobRow.prepare_attempt == expected_prepare_attempt
+            )
+        if expected_verify_attempt is not None:
+            conditions.append(TestJobRow.verify_attempt == expected_verify_attempt)
+        if expected_code_sha is not None:
+            conditions.append(TestJobRow.code_sha == expected_code_sha)
+
         result = self._session.execute(
             update(TestJobRow)
-            .where(TestJobRow.id == job_id, TestJobRow.version == expected_version)
-            .values(
-                latest_k8s_job_name=k8s_job_name,
-                version=expected_version + 1,
-                updated_at=datetime.now(UTC),
-            )
+            .where(*conditions)
+            .values(latest_k8s_job_name=k8s_job_name)
         )
-        if result.rowcount != 1:
-            raise ConcurrentUpdateError(
-                f"test job {job_id!r} is no longer at version {expected_version}"
-            )
         self._session.expire_all()
-        return self.get(job_id)
+        return result.rowcount == 1
 
     def claim_idempotency_key(
         self,

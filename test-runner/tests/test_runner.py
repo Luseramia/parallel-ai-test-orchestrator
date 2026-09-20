@@ -118,9 +118,7 @@ class TestRunnerTests(unittest.TestCase):
         result = run(configuration)
         self.assertEqual("FAILED", result["status"])
         self.assertEqual(17, result["commands"][0]["exit_code"])
-        self.assertEqual(
-            "DEPENDENCY_INSTALL_FAILED", result["failures"][0]["class"]
-        )
+        self.assertEqual("DEPENDENCY_INSTALL_FAILED", result["failures"][0]["class"])
 
     def test_build_failure_is_distinct_from_test_failure(self) -> None:
         patch = self._create_patch(
@@ -139,9 +137,7 @@ class TestRunnerTests(unittest.TestCase):
         self.assertEqual(2, result["commands"][0]["exit_code"])
 
     def test_compile_failure_is_classified_from_test_output(self) -> None:
-        patch = self._create_patch(
-            "tests/test_value.py", "this is not valid python\n"
-        )
+        patch = self._create_patch("tests/test_value.py", "this is not valid python\n")
         result = run(self._configuration(patch))
         self.assertEqual("TEST_COMPILE_FAILED", result["failures"][0]["class"])
 

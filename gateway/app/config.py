@@ -95,9 +95,7 @@ class Settings:
                 )
             ),
             max_request_bytes=int(os.getenv("MAX_REQUEST_BYTES", "1048576")),
-            max_artifact_bytes=int(
-                os.getenv("MAX_ARTIFACT_BYTES", "10485760")
-            ),
+            max_artifact_bytes=int(os.getenv("MAX_ARTIFACT_BYTES", "10485760")),
             artifact_link_ttl_seconds=int(
                 os.getenv("ARTIFACT_LINK_TTL_SECONDS", "300")
             ),
