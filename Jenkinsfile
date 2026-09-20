@@ -81,9 +81,9 @@ spec:
     environment {
         APP_GIT_REPO = 'git@github.com:Luseramia/parallel-ai-test-orchestrator.git'
         APP_GIT_BRANCH = 'main'
-        GITOPS_GIT_REPO = 'git@github.com:Luseramia/k8s-project-helm.git'
-        GITOPS_GIT_BRANCH = 'main'
-        GITOPS_DIR = 'parallel-ai-test-orchestrator'
+        DEPLOYMENT_GIT_REPO = 'git@github.com:Luseramia/k8s-project-helm.git'
+        DEPLOYMENT_GIT_BRANCH = 'main'
+        DEPLOYMENT_DIR = 'parallel-ai-test-orchestrator'
 
         REGISTRY = 'registry.registry.svc.cluster.local:5000'
         GATEWAY_IMAGE = 'parallel-ai-test-gateway'
@@ -91,16 +91,14 @@ spec:
         TEST_RUNNER_IMAGE = 'parallel-ai-test-runner'
         IMAGE_TAG = "${BUILD_NUMBER}"
 
-        ARGOCD_SERVER = 'https://argocd-server.argocd.svc.cluster.local'
-        ARGOCD_APP = 'parallel-ai-test-orchestrator'
         N8N_WEBHOOK = 'http://n8n.n8n.svc.cluster.local:443/webhook/jenkins-notify'
     }
 
     stages {
-        stage('Checkout source and GitOps') {
+        stage('Checkout source and deployment manifests') {
             steps {
                 script {
-                    safeRun('Checkout source and GitOps') {
+                    safeRun('Checkout source and deployment manifests') {
                         withCredentials([sshUserPrivateKey(
                             credentialsId: 'github_key',
                             keyFileVariable: 'GITHUB_KEY'
@@ -109,8 +107,8 @@ spec:
                                 sh '''
                                     set -eu
 
-                                    rm -rf -- /ci-workspace/source /ci-workspace/gitops
-                                    mkdir -p /ci-workspace/source /ci-workspace/gitops ~/.ssh
+                                    rm -rf -- /ci-workspace/source /ci-workspace/deployment
+                                    mkdir -p /ci-workspace/source /ci-workspace/deployment ~/.ssh
                                     chmod 700 ~/.ssh
 
                                     cat > ~/.ssh/config <<'SSHCFG'
@@ -125,13 +123,13 @@ SSHCFG
 
                                     git clone --branch "${APP_GIT_BRANCH}" --single-branch \
                                       "${APP_GIT_REPO}" /ci-workspace/source
-                                    git clone --branch "${GITOPS_GIT_BRANCH}" --single-branch \
-                                      "${GITOPS_GIT_REPO}" /ci-workspace/gitops
+                                    git clone --branch "${DEPLOYMENT_GIT_BRANCH}" --single-branch \
+                                      "${DEPLOYMENT_GIT_REPO}" /ci-workspace/deployment
 
                                     git config --global --add safe.directory /ci-workspace/source
-                                    git config --global --add safe.directory /ci-workspace/gitops
+                                    git config --global --add safe.directory /ci-workspace/deployment
                                     git -C /ci-workspace/source rev-parse HEAD
-                                    git -C /ci-workspace/gitops rev-parse HEAD
+                                    git -C /ci-workspace/deployment rev-parse HEAD
                                 '''
                             }
                         }
@@ -264,51 +262,47 @@ SSHCFG
             }
         }
 
-        stage('Update GitOps manifests') {
+        stage('Update deployment image tags') {
             steps {
                 script {
-                    safeRun('Update GitOps manifests') {
+                    safeRun('Update deployment image tags') {
                         container('helper') {
                             sh '''
                                 set -eu
 
-                                source_dir=/ci-workspace/source/k8s
-                                target_dir="/ci-workspace/gitops/${GITOPS_DIR}"
-                                rm -rf -- "${target_dir}/base" "${target_dir}/templates"
-                                mkdir -p "${target_dir}"
-                                cp -R "${source_dir}/base" "${target_dir}/base"
-                                cp -R "${source_dir}/templates" "${target_dir}/templates"
-                                cp "${source_dir}/README.md" "${target_dir}/README.md"
+                                target_dir="/ci-workspace/deployment/${DEPLOYMENT_DIR}"
+                                test -f "${target_dir}/gateway.yaml"
+                                test -f "${target_dir}/reconciler-cronjob.yaml"
 
                                 gateway_ref="${REGISTRY}/${GATEWAY_IMAGE}:${IMAGE_TAG}"
                                 codex_ref="${REGISTRY}/${CODEX_RUNNER_IMAGE}:${IMAGE_TAG}"
                                 test_ref="${REGISTRY}/${TEST_RUNNER_IMAGE}:${IMAGE_TAG}"
 
-                                sed -i \
-                                  "s|image: parallel-ai-test-gateway:latest|image: ${gateway_ref}|g" \
-                                  "${target_dir}/base/gateway.yaml" \
-                                  "${target_dir}/base/reconciler-cronjob.yaml"
-                                sed -i \
-                                  "s|value: parallel-ai-test-codex-runner:latest|value: ${codex_ref}|g" \
-                                  "${target_dir}/base/gateway.yaml"
-                                sed -i \
-                                  "s|value: parallel-ai-test-runner:latest|value: ${test_ref}|g" \
-                                  "${target_dir}/base/gateway.yaml"
+                                sed -i -E \
+                                  "s|image: [^[:space:]]*parallel-ai-test-gateway:[^[:space:]]*|image: ${gateway_ref}|g" \
+                                  "${target_dir}/gateway.yaml" \
+                                  "${target_dir}/reconciler-cronjob.yaml"
+                                sed -i -E \
+                                  "/name: CODEX_RUNNER_IMAGE/{n;s|value: [^[:space:]]+|value: ${codex_ref}|;}" \
+                                  "${target_dir}/gateway.yaml"
+                                sed -i -E \
+                                  "/name: TEST_RUNNER_IMAGE/{n;s|value: [^[:space:]]+|value: ${test_ref}|;}" \
+                                  "${target_dir}/gateway.yaml"
 
-                                grep -F "image: ${gateway_ref}" "${target_dir}/base/gateway.yaml"
-                                grep -F "image: ${gateway_ref}" "${target_dir}/base/reconciler-cronjob.yaml"
-                                grep -F "value: ${codex_ref}" "${target_dir}/base/gateway.yaml"
-                                grep -F "value: ${test_ref}" "${target_dir}/base/gateway.yaml"
+                                grep -F "image: ${gateway_ref}" "${target_dir}/gateway.yaml"
+                                grep -F "image: ${gateway_ref}" "${target_dir}/reconciler-cronjob.yaml"
+                                grep -F "value: ${codex_ref}" "${target_dir}/gateway.yaml"
+                                grep -F "value: ${test_ref}" "${target_dir}/gateway.yaml"
                             '''
                         }
 
                         container('kubectl') {
                             sh '''
                                 set -eu
-                                kubectl kustomize \
-                                  "/ci-workspace/gitops/${GITOPS_DIR}/base" \
-                                  > /tmp/parallel-ai-test-gitops-rendered.yaml
-                                test -s /tmp/parallel-ai-test-gitops-rendered.yaml
+                                find "/ci-workspace/deployment/${DEPLOYMENT_DIR}" \
+                                  -maxdepth 1 -type f -name '*.yaml' \
+                                  ! -name 'argocd-app.yaml' -print0 | \
+                                  xargs -0 -n 1 kubectl apply --dry-run=client --validate=false -f
                             '''
                         }
 
@@ -319,18 +313,18 @@ SSHCFG
                             container('helper') {
                                 sh '''
                                     set -eu
-                                    cd /ci-workspace/gitops
-                                    git config --global --add safe.directory /ci-workspace/gitops
+                                    cd /ci-workspace/deployment
+                                    git config --global --add safe.directory /ci-workspace/deployment
                                     git config user.email 'jenkins@ci.local'
                                     git config user.name 'Jenkins CI'
-                                    git add -- "${GITOPS_DIR}"
+                                    git add -- "${DEPLOYMENT_DIR}"
 
                                     if git diff --cached --quiet; then
-                                      echo 'No GitOps changes to commit'
+                                      echo 'No deployment image changes to commit'
                                     else
                                       git commit -m "Deploy parallel-ai-test images ${IMAGE_TAG} [skip ci]"
                                       export GIT_SSH_COMMAND="ssh -i ${GITHUB_KEY}"
-                                      git push origin "${GITOPS_GIT_BRANCH}"
+                                      git push origin "${DEPLOYMENT_GIT_BRANCH}"
                                     fi
                                 '''
                             }
@@ -340,33 +334,6 @@ SSHCFG
             }
         }
 
-        stage('Trigger Argo CD') {
-            steps {
-                script {
-                    safeRun('Trigger Argo CD') {
-                        withCredentials([string(
-                            credentialsId: 'argocd_token',
-                            variable: 'ARGOCD_TOKEN'
-                        )]) {
-                            container('helper') {
-                                sh '''
-                                    set -eu
-                                    command -v curl >/dev/null 2>&1 || apk add --no-cache curl >/dev/null
-
-                                    set +x
-                                    curl -fsSk -X POST \
-                                      -H "Authorization: Bearer ${ARGOCD_TOKEN}" \
-                                      -H 'Content-Type: application/json' \
-                                      "${ARGOCD_SERVER}/api/v1/applications/${ARGOCD_APP}/sync" \
-                                      -d '{}'
-                                    set -x
-                                '''
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 
     post {
@@ -375,7 +342,7 @@ SSHCFG
                 notifyN8n(
                     stageName: 'Pipeline',
                     status: 'success',
-                    message: "Built and deployed gateway, Codex runner, and test runner tag ${env.IMAGE_TAG}"
+                    message: "Published gateway, Codex runner, and test runner tag ${env.IMAGE_TAG}; Argo CD will sync it automatically"
                 )
             }
         }
