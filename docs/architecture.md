@@ -60,4 +60,6 @@ S3-compatible storage is selected because concurrent Jobs need digest-addressed 
 
 Implementation follows the existing environment: Python 3.13 FastAPI with `pip` and `unittest`, Node 22 Bookworm for the pinned Codex runner, Jenkins/Kaniko builds, immutable build-number image tags, and an Argo CD-managed `parallel-ai-test-orchestrator/` path in `k8s-project-helm`.
 
+The cluster-side controls that enforce these boundaries - namespaces, RBAC, NetworkPolicy, quotas, secret separation and the reconciler CronJob - are in [../k8s/](../k8s/README.md), and `gateway/tests/test_k8s_manifests.py` asserts them. Day-two procedures are in [operations.md](operations.md).
+
 Discovery evidence, gaps, and proposed files are recorded in [discovery.md](discovery.md).
