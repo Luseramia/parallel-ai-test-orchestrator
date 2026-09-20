@@ -60,6 +60,14 @@ export async function runProcess(
     const abort = (): void => terminate("process was aborted");
     options.signal?.addEventListener("abort", abort, { once: true });
 
+    const failOnStreamError = (streamName: string, error: Error): void => {
+      if (completed) return;
+      completed = true;
+      clearTimeout(timeout);
+      options.signal?.removeEventListener("abort", abort);
+      reject(new ProcessExecutionError(`${streamName} failed: ${error.message}`));
+    };
+
     const collect = (target: Buffer[], chunk: Buffer): void => {
       outputBytes += chunk.byteLength;
       if (outputBytes > maxOutputBytes) {
@@ -70,6 +78,13 @@ export async function runProcess(
     };
     child.stdout.on("data", (chunk: Buffer) => collect(stdout, chunk));
     child.stderr.on("data", (chunk: Buffer) => collect(stderr, chunk));
+    child.stdin.on("error", (error: NodeJS.ErrnoException) => {
+      // A short-lived child may close stdin before the prompt has finished
+      // writing. The child exit status remains authoritative in that case.
+      if (error.code !== "EPIPE") failOnStreamError("stdin", error);
+    });
+    child.stdout.on("error", (error) => failOnStreamError("stdout", error));
+    child.stderr.on("error", (error) => failOnStreamError("stderr", error));
     child.once("error", (error) => {
       if (!completed) {
         completed = true;
