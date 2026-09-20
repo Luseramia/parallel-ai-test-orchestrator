@@ -1,0 +1,25 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: parallel-ai-test-orchestrator
+  # Change this only when Argo CD was installed into another namespace.
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: parallel-ai-test-orchestrator
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  project: default
+  source:
+    # Configure this private repository in Argo CD before applying this file.
+    repoURL: https://github.com/Luseramia/k8s-project-helm.git
+    targetRevision: main
+    # Jenkins publishes reviewed manifests and immutable image tags here.
+    path: parallel-ai-test-orchestrator/base
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: ai-test-system
+  syncPolicy:
+    # Jenkins explicitly requests each production sync after its GitOps commit.
+    # Automated sync is intentionally omitted for the initial rollout.
+    syncOptions:
+      - CreateNamespace=true
