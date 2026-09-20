@@ -11,6 +11,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: parallel-ai-test-orchestrator
 spec:
+  storageClassName: truenas-nfs-storage
   accessModes: ["ReadWriteMany"]
   resources:
     requests:
