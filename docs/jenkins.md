@@ -37,7 +37,9 @@ those injected files and applies `ai-test-gateway` in
 `ai-test-runners`. Secret values stay in the Vault-injected files and are not
 copied into Groovy variables, console output, Git, or image layers. The
 `kaniko` ServiceAccount therefore needs namespaced Secret write access in both
-namespaces.
+namespaces. The deployment repository supplies that access through
+`jenkins-secret-rbac.yaml`; Jenkins does not need permission to read Namespace
+objects or any cluster-wide role.
 
 ## What it publishes
 

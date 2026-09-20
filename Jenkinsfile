@@ -279,8 +279,6 @@ SSHCFG
                                 test -s "${VAULT_SECRET_DIR}/ai-test-completion-webhook-secret"
                                 test -s "${VAULT_SECRET_DIR}/ai-test-github-read-token"
                                 test -s "${VAULT_SECRET_DIR}/ai-test-openai-api-key"
-                                kubectl get namespace ai-test-system >/dev/null
-                                kubectl get namespace ai-test-runners >/dev/null
 
                                 kubectl -n ai-test-system create secret generic ai-test-gateway \
                                   --from-file=database-url="${VAULT_SECRET_DIR}/ai-test-database-url" \
