@@ -385,13 +385,13 @@ SSHCFG
                             '''
                         }
 
-                        container('kubectl') {
+                        container('python') {
                             sh '''
                                 set -eu
-                                find "/ci-workspace/deployment/${DEPLOYMENT_DIR}" \
-                                  -maxdepth 1 -type f -name '*.yaml' \
-                                  ! -name 'argocd-app.yaml' -print0 | \
-                                  xargs -0 -n 1 kubectl apply --dry-run=client --validate=false -f
+                                /tmp/ai-test-ci-venv/bin/python \
+                                  /ci-workspace/source/scripts/validate-kubernetes-manifests.py \
+                                  "/ci-workspace/deployment/${DEPLOYMENT_DIR}" \
+                                  --exclude argocd-app.yaml
                             '''
                         }
 
