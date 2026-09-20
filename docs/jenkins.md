@@ -18,9 +18,9 @@ registry authentication mechanism to populate `/kaniko/.docker` in the same
 way as `codex-workspace`. The current internal registry is configured as
 insecure because that is the existing cluster convention.
 
-The same Pod uses Vault Agent injection with role `kaniko` and renders an
-ephemeral Kubernetes Secret manifest from `dev-secrets/data/creds`. Add these
-fields to that Vault secret:
+The same Pod uses Vault Agent injection with role `kaniko` and renders each
+runtime value into a separate ephemeral file from `dev-secrets/data/ai`. Add
+these fields to that Vault secret:
 
 - `AI_TEST_DATABASE_URL`
 - `AI_TEST_API_TOKEN`
@@ -31,9 +31,10 @@ fields to that Vault secret:
 - `AI_TEST_GITHUB_READ_TOKEN`
 - `AI_TEST_OPENAI_API_KEY`
 
-After manifest validation, Jenkins applies `ai-test-gateway` in
+After manifest validation, Jenkins builds the Kubernetes Secrets directly from
+those injected files and applies `ai-test-gateway` in
 `ai-test-system` plus the two callback Secrets and `ai-test-codex-auth` in
-`ai-test-runners`. Secret values stay in the Vault-injected file and are not
+`ai-test-runners`. Secret values stay in the Vault-injected files and are not
 copied into Groovy variables, console output, Git, or image layers. The
 `kaniko` ServiceAccount therefore needs namespaced Secret write access in both
 namespaces.

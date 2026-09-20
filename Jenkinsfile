@@ -8,59 +8,39 @@ metadata:
   annotations:
     vault.hashicorp.com/agent-inject: "true"
     vault.hashicorp.com/role: "kaniko"
-    vault.hashicorp.com/agent-inject-secret-ai-test-k8s: "dev-secrets/data/creds"
-    vault.hashicorp.com/agent-inject-template-ai-test-k8s: |
-      {{- with secret "dev-secrets/data/creds" -}}
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: ai-test-gateway
-        namespace: ai-test-system
-        labels:
-          app.kubernetes.io/part-of: parallel-ai-test-orchestrator
-      type: Opaque
-      data:
-        database-url: {{ .Data.data.AI_TEST_DATABASE_URL | base64Encode }}
-        api-token: {{ .Data.data.AI_TEST_API_TOKEN | base64Encode }}
-        codex-runner-token: {{ .Data.data.AI_TEST_CODEX_RUNNER_TOKEN | base64Encode }}
-        test-runner-token: {{ .Data.data.AI_TEST_TEST_RUNNER_TOKEN | base64Encode }}
-        artifact-signing-key: {{ .Data.data.AI_TEST_ARTIFACT_SIGNING_KEY | base64Encode }}
-        completion-webhook-secret: {{ .Data.data.AI_TEST_COMPLETION_WEBHOOK_SECRET | base64Encode }}
-        github-read-token: {{ .Data.data.AI_TEST_GITHUB_READ_TOKEN | base64Encode }}
-      ---
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: ai-test-codex-callback
-        namespace: ai-test-runners
-        labels:
-          app.kubernetes.io/part-of: parallel-ai-test-orchestrator
-      type: Opaque
-      data:
-        token: {{ .Data.data.AI_TEST_CODEX_RUNNER_TOKEN | base64Encode }}
-      ---
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: ai-test-test-callback
-        namespace: ai-test-runners
-        labels:
-          app.kubernetes.io/part-of: parallel-ai-test-orchestrator
-      type: Opaque
-      data:
-        token: {{ .Data.data.AI_TEST_TEST_RUNNER_TOKEN | base64Encode }}
-      ---
-      apiVersion: v1
-      kind: Secret
-      metadata:
-        name: ai-test-codex-auth
-        namespace: ai-test-runners
-        labels:
-          app.kubernetes.io/part-of: parallel-ai-test-orchestrator
-      type: Opaque
-      data:
-        api-key: {{ .Data.data.AI_TEST_OPENAI_API_KEY | base64Encode }}
-      {{- end }}
+    vault.hashicorp.com/template-config-exit-on-retry-failure: "true"
+    vault.hashicorp.com/agent-inject-secret-ai-test-database-url: "dev-secrets/data/ai"
+    vault.hashicorp.com/error-on-missing-key-ai-test-database-url: "true"
+    vault.hashicorp.com/agent-inject-template-ai-test-database-url: |
+      {{- with secret "dev-secrets/data/ai" -}}{{ .Data.data.AI_TEST_DATABASE_URL }}{{- end -}}
+    vault.hashicorp.com/agent-inject-secret-ai-test-api-token: "dev-secrets/data/ai"
+    vault.hashicorp.com/error-on-missing-key-ai-test-api-token: "true"
+    vault.hashicorp.com/agent-inject-template-ai-test-api-token: |
+      {{- with secret "dev-secrets/data/ai" -}}{{ .Data.data.AI_TEST_API_TOKEN }}{{- end -}}
+    vault.hashicorp.com/agent-inject-secret-ai-test-codex-runner-token: "dev-secrets/data/ai"
+    vault.hashicorp.com/error-on-missing-key-ai-test-codex-runner-token: "true"
+    vault.hashicorp.com/agent-inject-template-ai-test-codex-runner-token: |
+      {{- with secret "dev-secrets/data/ai" -}}{{ .Data.data.AI_TEST_CODEX_RUNNER_TOKEN }}{{- end -}}
+    vault.hashicorp.com/agent-inject-secret-ai-test-test-runner-token: "dev-secrets/data/ai"
+    vault.hashicorp.com/error-on-missing-key-ai-test-test-runner-token: "true"
+    vault.hashicorp.com/agent-inject-template-ai-test-test-runner-token: |
+      {{- with secret "dev-secrets/data/ai" -}}{{ .Data.data.AI_TEST_TEST_RUNNER_TOKEN }}{{- end -}}
+    vault.hashicorp.com/agent-inject-secret-ai-test-artifact-signing-key: "dev-secrets/data/ai"
+    vault.hashicorp.com/error-on-missing-key-ai-test-artifact-signing-key: "true"
+    vault.hashicorp.com/agent-inject-template-ai-test-artifact-signing-key: |
+      {{- with secret "dev-secrets/data/ai" -}}{{ .Data.data.AI_TEST_ARTIFACT_SIGNING_KEY }}{{- end -}}
+    vault.hashicorp.com/agent-inject-secret-ai-test-completion-webhook-secret: "dev-secrets/data/ai"
+    vault.hashicorp.com/error-on-missing-key-ai-test-completion-webhook-secret: "true"
+    vault.hashicorp.com/agent-inject-template-ai-test-completion-webhook-secret: |
+      {{- with secret "dev-secrets/data/ai" -}}{{ .Data.data.AI_TEST_COMPLETION_WEBHOOK_SECRET }}{{- end -}}
+    vault.hashicorp.com/agent-inject-secret-ai-test-github-read-token: "dev-secrets/data/ai"
+    vault.hashicorp.com/error-on-missing-key-ai-test-github-read-token: "true"
+    vault.hashicorp.com/agent-inject-template-ai-test-github-read-token: |
+      {{- with secret "dev-secrets/data/ai" -}}{{ .Data.data.AI_TEST_GITHUB_READ_TOKEN }}{{- end -}}
+    vault.hashicorp.com/agent-inject-secret-ai-test-openai-api-key: "dev-secrets/data/ai"
+    vault.hashicorp.com/error-on-missing-key-ai-test-openai-api-key: "true"
+    vault.hashicorp.com/agent-inject-template-ai-test-openai-api-key: |
+      {{- with secret "dev-secrets/data/ai" -}}{{ .Data.data.AI_TEST_OPENAI_API_KEY }}{{- end -}}
   labels:
     app.kubernetes.io/name: parallel-ai-test-orchestrator-ci
 spec:
@@ -146,7 +126,7 @@ spec:
         CODEX_RUNNER_IMAGE = 'parallel-ai-test-codex-runner'
         TEST_RUNNER_IMAGE = 'parallel-ai-test-runner'
         IMAGE_TAG = "${BUILD_NUMBER}"
-        VAULT_SECRET_MANIFEST = '/vault/secrets/ai-test-k8s'
+        VAULT_SECRET_DIR = '/vault/secrets'
 
         N8N_WEBHOOK = 'http://n8n.n8n.svc.cluster.local:443/webhook/jenkins-notify'
     }
@@ -291,10 +271,38 @@ SSHCFG
                                 set +x
                                 set -eu
 
-                                test -s "${VAULT_SECRET_MANIFEST}"
+                                test -s "${VAULT_SECRET_DIR}/ai-test-database-url"
+                                test -s "${VAULT_SECRET_DIR}/ai-test-api-token"
+                                test -s "${VAULT_SECRET_DIR}/ai-test-codex-runner-token"
+                                test -s "${VAULT_SECRET_DIR}/ai-test-test-runner-token"
+                                test -s "${VAULT_SECRET_DIR}/ai-test-artifact-signing-key"
+                                test -s "${VAULT_SECRET_DIR}/ai-test-completion-webhook-secret"
+                                test -s "${VAULT_SECRET_DIR}/ai-test-github-read-token"
+                                test -s "${VAULT_SECRET_DIR}/ai-test-openai-api-key"
                                 kubectl get namespace ai-test-system >/dev/null
                                 kubectl get namespace ai-test-runners >/dev/null
-                                kubectl apply -f "${VAULT_SECRET_MANIFEST}" >/dev/null
+
+                                kubectl -n ai-test-system create secret generic ai-test-gateway \
+                                  --from-file=database-url="${VAULT_SECRET_DIR}/ai-test-database-url" \
+                                  --from-file=api-token="${VAULT_SECRET_DIR}/ai-test-api-token" \
+                                  --from-file=codex-runner-token="${VAULT_SECRET_DIR}/ai-test-codex-runner-token" \
+                                  --from-file=test-runner-token="${VAULT_SECRET_DIR}/ai-test-test-runner-token" \
+                                  --from-file=artifact-signing-key="${VAULT_SECRET_DIR}/ai-test-artifact-signing-key" \
+                                  --from-file=completion-webhook-secret="${VAULT_SECRET_DIR}/ai-test-completion-webhook-secret" \
+                                  --from-file=github-read-token="${VAULT_SECRET_DIR}/ai-test-github-read-token" \
+                                  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+                                kubectl -n ai-test-runners create secret generic ai-test-codex-callback \
+                                  --from-file=token="${VAULT_SECRET_DIR}/ai-test-codex-runner-token" \
+                                  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+                                kubectl -n ai-test-runners create secret generic ai-test-test-callback \
+                                  --from-file=token="${VAULT_SECRET_DIR}/ai-test-test-runner-token" \
+                                  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+
+                                kubectl -n ai-test-runners create secret generic ai-test-codex-auth \
+                                  --from-file=api-key="${VAULT_SECRET_DIR}/ai-test-openai-api-key" \
+                                  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
                                 kubectl -n ai-test-system get secret ai-test-gateway >/dev/null
                                 kubectl -n ai-test-runners get secret ai-test-codex-callback >/dev/null
@@ -438,11 +446,6 @@ SSHCFG
                 )
             }
         }
-        always {
-            container('helper') {
-                sh 'rm -f -- /tmp/n8n-payload.json || true'
-            }
-        }
     }
 }
 
@@ -463,37 +466,41 @@ def notifyN8n(Map params) {
     def status = (params.status ?: 'info').toString().take(50)
     def message = (params.message ?: '').toString().take(1800)
 
-    container('helper') {
-        withEnv([
-            "NOTIFY_STAGE=${stageName}",
-            "NOTIFY_STATUS=${status}",
-            "NOTIFY_MESSAGE=${message}"
-        ]) {
-            sh '''
-                set +x
-                command -v curl >/dev/null 2>&1 || apk add --no-cache curl >/dev/null 2>&1 || true
-                command -v jq >/dev/null 2>&1 || apk add --no-cache jq >/dev/null 2>&1 || true
-                if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
-                  echo 'n8n notification tools are unavailable (non-fatal)'
-                  exit 0
-                fi
+    try {
+        container('helper') {
+            withEnv([
+                "NOTIFY_STAGE=${stageName}",
+                "NOTIFY_STATUS=${status}",
+                "NOTIFY_MESSAGE=${message}"
+            ]) {
+                sh '''
+                    set +x
+                    command -v curl >/dev/null 2>&1 || apk add --no-cache curl >/dev/null 2>&1 || true
+                    command -v jq >/dev/null 2>&1 || apk add --no-cache jq >/dev/null 2>&1 || true
+                    if ! command -v curl >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then
+                      echo 'n8n notification tools are unavailable (non-fatal)'
+                      exit 0
+                    fi
 
-                jq -n \
-                  --arg job "${JOB_NAME}" \
-                  --arg build "${BUILD_NUMBER}" \
-                  --arg url "${BUILD_URL}" \
-                  --arg stage "${NOTIFY_STAGE}" \
-                  --arg status "${NOTIFY_STATUS}" \
-                  --arg message "${NOTIFY_MESSAGE}" \
-                  '{job:$job,build:$build,url:$url,stage:$stage,status:$status,message:$message}' \
-                  > /tmp/n8n-payload.json
+                    jq -n \
+                      --arg job "${JOB_NAME}" \
+                      --arg build "${BUILD_NUMBER}" \
+                      --arg url "${BUILD_URL}" \
+                      --arg stage "${NOTIFY_STAGE}" \
+                      --arg status "${NOTIFY_STATUS}" \
+                      --arg message "${NOTIFY_MESSAGE}" \
+                      '{job:$job,build:$build,url:$url,stage:$stage,status:$status,message:$message}' \
+                      > /tmp/n8n-payload.json
 
-                curl -fsS -X POST "${N8N_WEBHOOK}" \
-                  -H 'Content-Type: application/json' \
-                  --data @/tmp/n8n-payload.json >/dev/null || \
-                  echo 'n8n notification failed (non-fatal)'
-                rm -f -- /tmp/n8n-payload.json
-            '''
+                    curl -fsS -X POST "${N8N_WEBHOOK}" \
+                      -H 'Content-Type: application/json' \
+                      --data @/tmp/n8n-payload.json >/dev/null || \
+                      echo 'n8n notification failed (non-fatal)'
+                    rm -f -- /tmp/n8n-payload.json
+                '''
+            }
         }
+    } catch (err) {
+        echo "n8n notification skipped because the Jenkins agent is unavailable: ${err.getMessage()}"
     }
 }
