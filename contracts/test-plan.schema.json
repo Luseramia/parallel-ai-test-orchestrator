@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parallel-ai-test-orchestrator.local/contracts/test-plan.schema.json",
+  "title": "AI test plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "task_id",
+    "repository",
+    "branch",
+    "base_sha",
+    "scope",
+    "acceptance_criteria",
+    "test_cases",
+    "commands",
+    "policy"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "task_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "repository": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]*$"
+    },
+    "branch": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)[A-Za-z0-9._/-]+$"
+    },
+    "base_sha": { "$ref": "#/$defs/gitSha" },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["production_paths", "allowed_test_paths", "forbidden_paths"],
+      "properties": {
+        "production_paths": { "$ref": "#/$defs/pathList" },
+        "allowed_test_paths": { "$ref": "#/$defs/nonEmptyPathList" },
+        "forbidden_paths": { "$ref": "#/$defs/pathList" }
+      }
+    },
+    "acceptance_criteria": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "description"],
+        "properties": {
+          "id": { "$ref": "#/$defs/localId" },
+          "description": { "type": "string", "minLength": 1, "maxLength": 4000 }
+        }
+      }
+    },
+    "test_cases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "acceptance_criteria", "level", "target", "given", "when", "then"],
+        "properties": {
+          "id": { "$ref": "#/$defs/localId" },
+          "acceptance_criteria": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/localId" }
+          },
+          "level": { "enum": ["unit", "integration", "e2e"] },
+          "target": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "given": { "type": "string", "minLength": 1, "maxLength": 4000 },
+          "when": { "type": "string", "minLength": 1, "maxLength": 4000 },
+          "then": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": { "type": "string", "minLength": 1, "maxLength": 4000 }
+          }
+        }
+      }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "install": { "$ref": "#/$defs/commandId" },
+        "build": { "$ref": "#/$defs/commandId" },
+        "unit": { "$ref": "#/$defs/commandId" },
+        "integration": { "$ref": "#/$defs/commandId" },
+        "e2e": { "$ref": "#/$defs/commandId" }
+      }
+    },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allow_network_during_tests",
+        "max_test_minutes",
+        "allow_skipped_required_tests",
+        "max_repair_attempts"
+      ],
+      "properties": {
+        "allow_network_during_tests": { "type": "boolean" },
+        "max_test_minutes": { "type": "integer", "minimum": 1, "maximum": 120 },
+        "allow_skipped_required_tests": { "type": "boolean" },
+        "max_repair_attempts": { "type": "integer", "minimum": 0, "maximum": 2 }
+      }
+    }
+  },
+  "$defs": {
+    "gitSha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "localId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//).+$"
+    },
+    "pathList": {
+      "type": "array",
+      "maxItems": 500,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/safePath" }
+    },
+    "nonEmptyPathList": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/safePath" }
+    },
+    "commandId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "description": "Opaque repository-policy command ID, never shell text."
+    }
+  }
+}

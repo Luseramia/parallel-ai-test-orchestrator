@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parallel-ai-test-orchestrator.local/contracts/generation-result.schema.json",
+  "title": "Codex test generation result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "job_id",
+    "task_id",
+    "base_sha",
+    "code_sha",
+    "summary",
+    "created_tests",
+    "covered_test_cases",
+    "uncovered_test_cases",
+    "risks"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "job_id": { "type": "string", "pattern": "^atj_[0-9a-f]{32}$" },
+    "task_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "base_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "code_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 8000 },
+    "created_tests": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "test_case_ids", "acceptance_criteria"],
+        "properties": {
+          "path": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "test_case_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 100 } },
+          "acceptance_criteria": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 100 } }
+        }
+      }
+    },
+    "covered_test_cases": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 100 } },
+    "uncovered_test_cases": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 100 } },
+    "risks": { "type": "array", "maxItems": 100, "items": { "type": "string", "minLength": 1, "maxLength": 2000 } }
+  }
+}
+

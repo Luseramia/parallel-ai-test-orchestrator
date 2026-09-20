@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parallel-ai-test-orchestrator.local/contracts/test-result.schema.json",
+  "title": "Credential-free test result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "job_id",
+    "task_id",
+    "base_sha",
+    "tested_sha",
+    "patch_sha256",
+    "status",
+    "started_at",
+    "completed_at",
+    "duration_seconds",
+    "summary",
+    "commands",
+    "failures",
+    "artifacts",
+    "uncovered_acceptance_criteria"
+  ],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "job_id": { "type": "string", "pattern": "^atj_[0-9a-f]{32}$" },
+    "task_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "base_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "tested_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "patch_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "status": { "enum": ["PASSED", "FAILED", "ERROR", "TIMEOUT"] },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "duration_seconds": { "type": "number", "minimum": 0 },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["passed", "failed", "skipped"],
+      "properties": {
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "command_id", "exit_code", "duration_seconds", "timed_out"],
+        "properties": {
+          "name": { "enum": ["install", "build", "unit", "integration", "e2e"] },
+          "command_id": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "exit_code": { "type": ["integer", "null"] },
+          "duration_seconds": { "type": "number", "minimum": 0 },
+          "timed_out": { "type": "boolean" }
+        }
+      }
+    },
+    "coverage": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "properties": {
+        "lines": { "type": "number", "minimum": 0, "maximum": 100 },
+        "branches": { "type": "number", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["class", "message"],
+        "properties": {
+          "class": { "enum": ["TEST_ASSERTION_FAILED", "TEST_COMPILE_FAILED", "BUILD_FAILED", "DEPENDENCY_INSTALL_FAILED", "ENVIRONMENT_FAILED", "PATCH_APPLY_FAILED", "COMMAND_TIMEOUT", "AGENT_FAILED", "POLICY_VIOLATION", "CALLBACK_FAILED"] },
+          "message": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "command_id": { "type": "string", "maxLength": 100 }
+        }
+      }
+    },
+    "artifacts": { "type": "array", "items": { "type": "object" } },
+    "uncovered_acceptance_criteria": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 100 } }
+  }
+}

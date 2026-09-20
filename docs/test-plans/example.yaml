@@ -1,0 +1,44 @@
+schema_version: "1.0"
+task_id: "TASK-123"
+repository: "github.com/Luseramia/ai-orchestrator"
+branch: "main"
+base_sha: "0123456789abcdef0123456789abcdef01234567"
+
+scope:
+  production_paths:
+    - "app/**"
+  allowed_test_paths:
+    - "tests/**/*.py"
+    - "tests/fixtures/**"
+  forbidden_paths:
+    - "scripts/**"
+    - ".github/**"
+    - "Dockerfile"
+    - "requirements.txt"
+
+acceptance_criteria:
+  - id: "AC-001"
+    description: "The orchestrator returns a deterministic response for a valid request."
+
+test_cases:
+  - id: "TC-001"
+    acceptance_criteria: ["AC-001"]
+    level: "unit"
+    target: "The request orchestration service"
+    given: "A valid generation request"
+    when: "The service handles the request"
+    then:
+      - "The response is successful"
+      - "The response satisfies the public contract"
+
+# Values are repository-policy command IDs, not shell commands.
+commands:
+  install: "python-pip-requirements-staging"
+  unit: "python-unittest-all"
+  integration: "python-unittest-gateway-integration"
+
+policy:
+  allow_network_during_tests: false
+  max_test_minutes: 20
+  allow_skipped_required_tests: false
+  max_repair_attempts: 0

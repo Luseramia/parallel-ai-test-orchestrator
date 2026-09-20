@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parallel-ai-test-orchestrator.local/contracts/events.schema.json",
+  "title": "Runner callback event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "attempt", "phase", "status", "artifacts", "summary", "occurred_at"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "event_id": { "type": "string", "pattern": "^evt_[A-Za-z0-9_-]{8,100}$" },
+    "attempt": { "type": "integer", "minimum": 1 },
+    "phase": { "enum": ["PREPARE", "GENERATE", "TEST", "SYSTEM"] },
+    "status": {
+      "enum": [
+        "PREPARING", "WAITING_FOR_CODE", "GENERATING_TESTS", "TEST_QUEUED",
+        "TESTING", "PASSED", "FAILED", "BLOCKED", "ERROR", "TIMEOUT"
+      ]
+    },
+    "code_sha": {
+      "oneOf": [
+        { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        { "type": "null" }
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "object_key", "sha256", "size_bytes"],
+        "properties": {
+          "type": { "enum": ["PLAN", "DRAFT", "PATCH", "CODEX_JSONL", "RAW_LOG", "JUNIT", "COVERAGE", "RESULT"] },
+          "object_key": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "size_bytes": { "type": "integer", "minimum": 0 },
+          "media_type": { "type": "string", "minLength": 1, "maxLength": 200 }
+        }
+      }
+    },
+    "summary": { "type": "object", "maxProperties": 100 },
+    "occurred_at": { "type": "string", "format": "date-time" }
+  }
+}
+

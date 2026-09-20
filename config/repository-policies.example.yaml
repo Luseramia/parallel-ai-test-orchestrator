@@ -39,6 +39,31 @@ repositories:
       unit: python-unittest-all
       integration: python-unittest-gateway-integration
 
+    # Only these server-owned argv arrays may be executed. Test plans carry
+    # the opaque IDs above, never shell text.
+    command_argv:
+      python-pip-requirements-staging:
+        - python
+        - -m
+        - pip
+        - install
+        - -r
+        - requirements.txt
+      python-unittest-all:
+        - python
+        - -m
+        - unittest
+        - discover
+        - -v
+      python-unittest-gateway-integration:
+        - python
+        - -m
+        - unittest
+        - discover
+        - -s
+        - tests
+        - -v
+
     limits:
       install_timeout_seconds: 300
       unit_timeout_seconds: 300

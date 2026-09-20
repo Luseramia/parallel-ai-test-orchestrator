@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://parallel-ai-test-orchestrator.local/contracts/test-draft.schema.json",
+  "title": "Codex prepare test draft",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "job_id", "task_id", "base_sha", "summary", "proposed_tests", "risks", "command_ids"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "job_id": { "type": "string", "pattern": "^atj_[0-9a-f]{32}$" },
+    "task_id": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "base_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 8000 },
+    "proposed_tests": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["test_case_id", "acceptance_criteria", "level", "path", "description"],
+        "properties": {
+          "test_case_id": { "type": "string", "minLength": 1, "maxLength": 100 },
+          "acceptance_criteria": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 100 } },
+          "level": { "enum": ["unit", "integration", "e2e"] },
+          "path": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$" },
+          "description": { "type": "string", "minLength": 1, "maxLength": 4000 }
+        }
+      }
+    },
+    "risks": { "type": "array", "maxItems": 100, "items": { "type": "string", "minLength": 1, "maxLength": 2000 } },
+    "command_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$" } }
+  }
+}
+
