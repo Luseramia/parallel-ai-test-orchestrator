@@ -39,7 +39,9 @@ copied into Groovy variables, console output, Git, or image layers. The
 `kaniko` ServiceAccount therefore needs namespaced Secret write access in both
 namespaces. The deployment repository supplies that access through
 `jenkins-secret-rbac.yaml`; Jenkins does not need permission to read Namespace
-objects or any cluster-wide role.
+objects or any cluster-wide role. During the first deployment, the Secret stage
+retries for up to ten minutes while Argo CD creates the two namespaces and
+applies that RBAC.
 
 ## What it publishes
 

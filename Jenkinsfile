@@ -280,27 +280,55 @@ SSHCFG
                                 test -s "${VAULT_SECRET_DIR}/ai-test-github-read-token"
                                 test -s "${VAULT_SECRET_DIR}/ai-test-openai-api-key"
 
-                                kubectl -n ai-test-system create secret generic ai-test-gateway \
+                                # Argo CD owns namespace/RBAC bootstrap. A newly created
+                                # application can need one reconciliation interval before
+                                # Jenkins is allowed to create these external Secrets.
+                                apply_secret_with_retry() {
+                                  namespace="$1"
+                                  secret_name="$2"
+                                  shift 2
+                                  attempt=1
+                                  max_attempts=120
+                                  error_file="/tmp/${secret_name}-apply.err"
+
+                                  while ! kubectl -n "${namespace}" create secret generic "${secret_name}" "$@" \
+                                    --dry-run=client -o yaml \
+                                    | kubectl apply -f - >/dev/null 2>"${error_file}"
+                                  do
+                                    if [ "${attempt}" -eq 1 ] || [ $((attempt % 12)) -eq 0 ]; then
+                                      echo "Waiting for ${namespace} and Jenkins Secret RBAC (${attempt}/${max_attempts})" >&2
+                                      sed -n '1,5p' "${error_file}" >&2
+                                    fi
+                                    if [ "${attempt}" -ge "${max_attempts}" ]; then
+                                      echo "Timed out waiting to apply ${namespace}/${secret_name}" >&2
+                                      rm -f -- "${error_file}"
+                                      return 1
+                                    fi
+                                    attempt=$((attempt + 1))
+                                    sleep 5
+                                  done
+
+                                  rm -f -- "${error_file}"
+                                  echo "Applied ${namespace}/${secret_name}"
+                                }
+
+                                apply_secret_with_retry ai-test-system ai-test-gateway \
                                   --from-file=database-url="${VAULT_SECRET_DIR}/ai-test-database-url" \
                                   --from-file=api-token="${VAULT_SECRET_DIR}/ai-test-api-token" \
                                   --from-file=codex-runner-token="${VAULT_SECRET_DIR}/ai-test-codex-runner-token" \
                                   --from-file=test-runner-token="${VAULT_SECRET_DIR}/ai-test-test-runner-token" \
                                   --from-file=artifact-signing-key="${VAULT_SECRET_DIR}/ai-test-artifact-signing-key" \
                                   --from-file=completion-webhook-secret="${VAULT_SECRET_DIR}/ai-test-completion-webhook-secret" \
-                                  --from-file=github-read-token="${VAULT_SECRET_DIR}/ai-test-github-read-token" \
-                                  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+                                  --from-file=github-read-token="${VAULT_SECRET_DIR}/ai-test-github-read-token"
 
-                                kubectl -n ai-test-runners create secret generic ai-test-codex-callback \
-                                  --from-file=token="${VAULT_SECRET_DIR}/ai-test-codex-runner-token" \
-                                  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+                                apply_secret_with_retry ai-test-runners ai-test-codex-callback \
+                                  --from-file=token="${VAULT_SECRET_DIR}/ai-test-codex-runner-token"
 
-                                kubectl -n ai-test-runners create secret generic ai-test-test-callback \
-                                  --from-file=token="${VAULT_SECRET_DIR}/ai-test-test-runner-token" \
-                                  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+                                apply_secret_with_retry ai-test-runners ai-test-test-callback \
+                                  --from-file=token="${VAULT_SECRET_DIR}/ai-test-test-runner-token"
 
-                                kubectl -n ai-test-runners create secret generic ai-test-codex-auth \
-                                  --from-file=api-key="${VAULT_SECRET_DIR}/ai-test-openai-api-key" \
-                                  --dry-run=client -o yaml | kubectl apply -f - >/dev/null
+                                apply_secret_with_retry ai-test-runners ai-test-codex-auth \
+                                  --from-file=api-key="${VAULT_SECRET_DIR}/ai-test-openai-api-key"
 
                                 kubectl -n ai-test-system get secret ai-test-gateway >/dev/null
                                 kubectl -n ai-test-runners get secret ai-test-codex-callback >/dev/null
