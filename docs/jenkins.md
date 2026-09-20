@@ -18,6 +18,26 @@ registry authentication mechanism to populate `/kaniko/.docker` in the same
 way as `codex-workspace`. The current internal registry is configured as
 insecure because that is the existing cluster convention.
 
+The same Pod uses Vault Agent injection with role `kaniko` and renders an
+ephemeral Kubernetes Secret manifest from `dev-secrets/data/creds`. Add these
+fields to that Vault secret:
+
+- `AI_TEST_DATABASE_URL`
+- `AI_TEST_API_TOKEN`
+- `AI_TEST_CODEX_RUNNER_TOKEN`
+- `AI_TEST_TEST_RUNNER_TOKEN`
+- `AI_TEST_ARTIFACT_SIGNING_KEY`
+- `AI_TEST_COMPLETION_WEBHOOK_SECRET`
+- `AI_TEST_GITHUB_READ_TOKEN`
+- `AI_TEST_OPENAI_API_KEY`
+
+After manifest validation, Jenkins applies `ai-test-gateway` in
+`ai-test-system` plus the two callback Secrets and `ai-test-codex-auth` in
+`ai-test-runners`. Secret values stay in the Vault-injected file and are not
+copied into Groovy variables, console output, Git, or image layers. The
+`kaniko` ServiceAccount therefore needs namespaced Secret write access in both
+namespaces.
+
 ## What it publishes
 
 Every successful build pushes one immutable tag (`BUILD_NUMBER`) for:
@@ -38,8 +58,8 @@ token.
 1. Apply `parallel-ai-test-orchestrator/argocd-app.yaml` from
    `k8s-project-helm` once. It points Argo CD at the application's directory
    and enables automated sync.
-2. Provision the Secrets and repository-policy ConfigMap described in
-   `k8s/README.md`.
+2. Populate the required Vault fields above. Argo CD manages the non-secret
+   repository-policy ConfigMap.
 3. Confirm the Jenkins `kaniko` ServiceAccount can push to
    `registry.registry.svc.cluster.local:5000`.
 4. Review the fixed repository URLs, branches, registry, and n8n webhook at

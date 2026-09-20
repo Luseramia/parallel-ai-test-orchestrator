@@ -74,6 +74,13 @@ docker build -f test-runner/Dockerfile  -t parallel-ai-test-runner:$BUILD .
 
 ## Apply
 
+For the Jenkins/Argo CD deployment, populate the Vault fields listed in
+[`docs/jenkins.md`](../docs/jenkins.md#jenkins-credentials). Jenkins creates
+the four runtime Secrets below from Vault, while Argo CD applies the remaining
+resources from `k8s-project-helm`.
+
+The commands below are the manual-development alternative:
+
 ```console
 kubectl apply -f base/namespace.yaml
 # Secrets first: the Deployment will not start without them.

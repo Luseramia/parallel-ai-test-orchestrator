@@ -5,6 +5,62 @@ pipeline {
 apiVersion: v1
 kind: Pod
 metadata:
+  annotations:
+    vault.hashicorp.com/agent-inject: "true"
+    vault.hashicorp.com/role: "kaniko"
+    vault.hashicorp.com/agent-inject-secret-ai-test-k8s: "dev-secrets/data/creds"
+    vault.hashicorp.com/agent-inject-template-ai-test-k8s: |
+      {{- with secret "dev-secrets/data/creds" -}}
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: ai-test-gateway
+        namespace: ai-test-system
+        labels:
+          app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+      type: Opaque
+      data:
+        database-url: {{ .Data.data.AI_TEST_DATABASE_URL | base64Encode }}
+        api-token: {{ .Data.data.AI_TEST_API_TOKEN | base64Encode }}
+        codex-runner-token: {{ .Data.data.AI_TEST_CODEX_RUNNER_TOKEN | base64Encode }}
+        test-runner-token: {{ .Data.data.AI_TEST_TEST_RUNNER_TOKEN | base64Encode }}
+        artifact-signing-key: {{ .Data.data.AI_TEST_ARTIFACT_SIGNING_KEY | base64Encode }}
+        completion-webhook-secret: {{ .Data.data.AI_TEST_COMPLETION_WEBHOOK_SECRET | base64Encode }}
+        github-read-token: {{ .Data.data.AI_TEST_GITHUB_READ_TOKEN | base64Encode }}
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: ai-test-codex-callback
+        namespace: ai-test-runners
+        labels:
+          app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+      type: Opaque
+      data:
+        token: {{ .Data.data.AI_TEST_CODEX_RUNNER_TOKEN | base64Encode }}
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: ai-test-test-callback
+        namespace: ai-test-runners
+        labels:
+          app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+      type: Opaque
+      data:
+        token: {{ .Data.data.AI_TEST_TEST_RUNNER_TOKEN | base64Encode }}
+      ---
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: ai-test-codex-auth
+        namespace: ai-test-runners
+        labels:
+          app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+      type: Opaque
+      data:
+        api-key: {{ .Data.data.AI_TEST_OPENAI_API_KEY | base64Encode }}
+      {{- end }}
   labels:
     app.kubernetes.io/name: parallel-ai-test-orchestrator-ci
 spec:
@@ -90,6 +146,7 @@ spec:
         CODEX_RUNNER_IMAGE = 'parallel-ai-test-codex-runner'
         TEST_RUNNER_IMAGE = 'parallel-ai-test-runner'
         IMAGE_TAG = "${BUILD_NUMBER}"
+        VAULT_SECRET_MANIFEST = '/vault/secrets/ai-test-k8s'
 
         N8N_WEBHOOK = 'http://n8n.n8n.svc.cluster.local:443/webhook/jenkins-notify'
     }
@@ -218,6 +275,32 @@ SSHCFG
                                 kubectl kustomize /ci-workspace/source/k8s/base \
                                   > /tmp/parallel-ai-test-rendered.yaml
                                 test -s /tmp/parallel-ai-test-rendered.yaml
+                            '''
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Apply runtime secrets') {
+            steps {
+                script {
+                    safeRun('Apply runtime secrets') {
+                        container('kubectl') {
+                            sh '''
+                                set +x
+                                set -eu
+
+                                test -s "${VAULT_SECRET_MANIFEST}"
+                                kubectl get namespace ai-test-system >/dev/null
+                                kubectl get namespace ai-test-runners >/dev/null
+                                kubectl apply -f "${VAULT_SECRET_MANIFEST}" >/dev/null
+
+                                kubectl -n ai-test-system get secret ai-test-gateway >/dev/null
+                                kubectl -n ai-test-runners get secret ai-test-codex-callback >/dev/null
+                                kubectl -n ai-test-runners get secret ai-test-test-callback >/dev/null
+                                kubectl -n ai-test-runners get secret ai-test-codex-auth >/dev/null
+                                echo 'Runtime Secrets applied from Vault'
                             '''
                         }
                     }
