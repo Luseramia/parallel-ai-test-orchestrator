@@ -1,0 +1,17 @@
+# Artifacts are written by the gateway (runners upload through its internal
+# API, never by mounting this volume) and read by the reconciler CronJob during
+# retention purges. Both Pods can run at once, so the class must support
+# ReadWriteMany; on a cluster with only ReadWriteOnce, pin both to one node or
+# move the purge duty into the gateway process.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ai-test-artifacts
+  namespace: ai-test-system
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  accessModes: ["ReadWriteMany"]
+  resources:
+    requests:
+      storage: 50Gi

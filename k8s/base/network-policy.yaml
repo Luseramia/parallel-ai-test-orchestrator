@@ -1,0 +1,247 @@
+# Egress ipBlocks deny every RFC1918 range plus the link-local range. That one
+# exception list is what keeps runners away from the Kubernetes API server, the
+# cloud metadata endpoint, PostgreSQL and every other in-cluster service; the
+# only in-cluster peer a runner may reach is the gateway callback port, granted
+# explicitly below. Cluster Pod/Service CIDRs must therefore stay inside those
+# private ranges - verify with the check in docs/operations.md before rollout.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: ai-test-system
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: ai-test-runners
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress", "Egress"]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-ingress
+  namespace: ai-test-system
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: parallel-ai-test-gateway
+      app.kubernetes.io/component: gateway
+  policyTypes: ["Ingress"]
+  ingress:
+    # n8n intake and completion workflows.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: n8n
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Runner callbacks and artifact upload/download.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-test-runners
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: parallel-ai-test-runner
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Metrics scraping.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gateway-egress
+  namespace: ai-test-system
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  # Selects the gateway Deployment and the reconciler CronJob, which share the
+  # name label and the same outbound needs.
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: parallel-ai-test-gateway
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Kubernetes API server. Replace with the real control plane endpoint;
+    # `kubectl get endpoints kubernetes -n default` prints it.
+    - to:
+        - ipBlock:
+            cidr: 10.0.0.1/32
+      ports:
+        - protocol: TCP
+          port: 443
+    # PostgreSQL. Replace the namespace label or swap in an ipBlock when the
+    # database is managed outside the cluster.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # n8n completion webhook.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: n8n
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 8080
+    # Git provider API for commit reachability checks.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: codex-runner-egress
+  namespace: ai-test-runners
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: parallel-ai-test-runner
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: In
+        values: ["prepare", "generate"]
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Gateway callback and artifact transfer.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-test-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: parallel-ai-test-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Git remote and model endpoint, public addresses only.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: test-runner-egress
+  namespace: ai-test-runners
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: parallel-ai-test-runner
+      app.kubernetes.io/component: test
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Gateway callback, artifact upload and patch download. This is the only
+    # in-cluster destination a credential-free test Job may reach.
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-test-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: parallel-ai-test-gateway
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Git remote and package registry, public addresses only. Prefer an
+    # in-cluster mirror and replace this rule with its ipBlock; NetworkPolicy
+    # cannot filter by hostname, so a public rule cannot by itself keep a test
+    # Job away from a model endpoint. The credential separation does: no model
+    # secret is ever mounted into this Job.
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+              - 100.64.0.0/10
+      ports:
+        - protocol: TCP
+          port: 443

@@ -1,0 +1,98 @@
+# Reference copy of the Job the gateway POSTs for the test phase, kept
+# identical to gateway/app/services/kubernetes_launcher.py by
+# gateway/tests/test_k8s_manifests.py.
+#
+# This is the workload that executes repository-controlled code. It has its own
+# ServiceAccount and callback Secret, no Kubernetes API token, and - the point
+# of the whole split - no model credential. The absence of OPENAI_API_KEY below
+# is asserted by the test suite, not merely intended.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: __JOB_NAME__
+  namespace: ai-test-runners
+  labels:
+    app.kubernetes.io/name: parallel-ai-test-runner
+    app.kubernetes.io/component: test
+    ai-test.openai.com/job-id: __JOB_ID__
+  annotations:
+    ai-test.openai.com/code-sha: __CODE_SHA__
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: __ACTIVE_DEADLINE_SECONDS__
+  ttlSecondsAfterFinished: __TTL_SECONDS__
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: parallel-ai-test-runner
+        app.kubernetes.io/component: test
+        ai-test.openai.com/job-id: __JOB_ID__
+    spec:
+      serviceAccountName: test-runner
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: runner
+          image: __TEST_RUNNER_IMAGE__
+          imagePullPolicy: IfNotPresent
+          command: ["python", "/runner/runner.py"]
+          env:
+            - name: JOB_ID
+              value: __JOB_ID__
+            - name: TASK_ID
+              value: __TASK_ID__
+            - name: GIT_CLONE_URL
+              value: __CLONE_URL__
+            - name: BASE_SHA
+              value: __BASE_SHA__
+            - name: ATTEMPT
+              value: "__ATTEMPT__"
+            - name: ARTIFACT_ROOT
+              value: /artifacts
+            - name: GATEWAY_URL
+              value: __GATEWAY_URL__
+            - name: ARTIFACT_GATEWAY_URL
+              value: __ARTIFACT_GATEWAY_URL__
+            - name: RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: __TEST_CALLBACK_SECRET__
+                  key: token
+            - name: CODE_SHA
+              value: __CODE_SHA__
+            - name: PATCH_PATH
+              value: /artifacts/input/tests.patch
+            - name: PATCH_OBJECT_KEY
+              value: __PATCH_OBJECT_KEY__
+            - name: PATCH_SHA256
+              value: __PATCH_SHA256__
+            - name: RUNNER_POLICY_JSON
+              value: '__RUNNER_POLICY_JSON__'
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: artifacts
+              mountPath: /artifacts
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: artifacts
+          emptyDir:
+            sizeLimit: 256Mi
+        - name: tmp
+          emptyDir:
+            sizeLimit: 2Gi

@@ -1,0 +1,43 @@
+# The quota caps how much a runaway plan intake can cost the cluster, and the
+# LimitRange gives every Job container a bounded default even if a future code
+# path forgets to set one.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: runner-quota
+  namespace: ai-test-runners
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  hard:
+    pods: "24"
+    count/jobs.batch: "48"
+    requests.cpu: "8"
+    requests.memory: 16Gi
+    limits.cpu: "32"
+    limits.memory: 48Gi
+    requests.ephemeral-storage: 8Gi
+    limits.ephemeral-storage: 64Gi
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: runner-defaults
+  namespace: ai-test-runners
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: "2"
+        memory: 2Gi
+        ephemeral-storage: 4Gi
+      defaultRequest:
+        cpu: 250m
+        memory: 512Mi
+        ephemeral-storage: 1Gi
+      max:
+        cpu: "4"
+        memory: 8Gi
+        ephemeral-storage: 16Gi

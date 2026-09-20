@@ -1,0 +1,164 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: ai-test-system
+  labels:
+    app.kubernetes.io/name: parallel-ai-test-gateway
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  selector:
+    app.kubernetes.io/name: parallel-ai-test-gateway
+    app.kubernetes.io/component: gateway
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: ai-test-system
+  labels:
+    app.kubernetes.io/name: parallel-ai-test-gateway
+    app.kubernetes.io/component: gateway
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: parallel-ai-test-gateway
+      app.kubernetes.io/component: gateway
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: parallel-ai-test-gateway
+        app.kubernetes.io/component: gateway
+        app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+    spec:
+      serviceAccountName: gateway
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          # Replaced by CI with an immutable build-number tag.
+          image: parallel-ai-test-gateway:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            ["uvicorn", "app.main:create_app", "--factory", "--host", "0.0.0.0", "--port", "8080"]
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: JOB_LAUNCHER_BACKEND
+              value: kubernetes
+            - name: KUBERNETES_RUNNER_NAMESPACE
+              value: ai-test-runners
+            - name: GATEWAY_INTERNAL_URL
+              value: http://gateway.ai-test-system.svc.cluster.local:8080
+            - name: ARTIFACT_ROOT
+              value: /var/lib/ai-test/artifacts
+            - name: REPOSITORY_POLICY_PATH
+              value: /etc/ai-test/repository-policies.yaml
+            - name: CODEX_RUNNER_IMAGE
+              value: parallel-ai-test-codex-runner:latest
+            - name: TEST_RUNNER_IMAGE
+              value: parallel-ai-test-runner:latest
+            - name: CODEX_SECRET_NAME
+              value: ai-test-codex-auth
+            - name: CODEX_TOKEN_SECRET_NAME
+              value: ai-test-codex-callback
+            - name: TEST_TOKEN_SECRET_NAME
+              value: ai-test-test-callback
+            - name: RUNNER_ACTIVE_DEADLINE_SECONDS
+              value: "1800"
+            - name: RUNNER_TTL_SECONDS
+              value: "3600"
+            - name: CALLBACK_ALLOWED_HOSTS
+              value: n8n.n8n.svc.cluster.local
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ai-test-gateway
+                  key: database-url
+            - name: GATEWAY_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ai-test-gateway
+                  key: api-token
+            - name: GATEWAY_CODEX_RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ai-test-gateway
+                  key: codex-runner-token
+            - name: GATEWAY_TEST_RUNNER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ai-test-gateway
+                  key: test-runner-token
+            - name: ARTIFACT_SIGNING_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: ai-test-gateway
+                  key: artifact-signing-key
+            - name: COMPLETION_WEBHOOK_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ai-test-gateway
+                  key: completion-webhook-secret
+            - name: GITHUB_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: ai-test-gateway
+                  key: github-read-token
+          resources:
+            requests:
+              cpu: 200m
+              memory: 384Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+          volumeMounts:
+            - name: artifacts
+              mountPath: /var/lib/ai-test/artifacts
+            - name: repository-policies
+              mountPath: /etc/ai-test
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: artifacts
+          persistentVolumeClaim:
+            claimName: ai-test-artifacts
+        - name: repository-policies
+          configMap:
+            name: ai-test-repository-policies
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi

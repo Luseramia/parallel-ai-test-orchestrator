@@ -1,0 +1,22 @@
+# Namespaced Role only. There is deliberately no ClusterRole anywhere in this
+# system: the gateway must not be able to reach workloads outside
+# ai-test-runners even if its token leaks. Pod read access exists so operators
+# can pull runner logs through the gateway; exec, attach, portforward, secrets
+# and any write verb on Pods are excluded.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: runner-job-manager
+  namespace: ai-test-runners
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+rules:
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["create", "get", "list", "watch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]

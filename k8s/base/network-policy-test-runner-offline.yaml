@@ -1,0 +1,44 @@
+# Drop-in replacement for the `test-runner-egress` policy in
+# network-policy.yaml, for repositories whose plan sets
+# `allow_network_during_tests: false`. It carries the same object name on
+# purpose: applying this file overwrites the permissive rule instead of adding
+# a second, additive one. With it in place a test Job can reach DNS and the
+# gateway callback and nothing else, so dependency installation has to happen
+# in the image or in an earlier phase.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: test-runner-egress
+  namespace: ai-test-runners
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+    ai-test.openai.com/variant: offline
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: parallel-ai-test-runner
+      app.kubernetes.io/component: test
+  policyTypes: ["Egress"]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ai-test-system
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: parallel-ai-test-gateway
+      ports:
+        - protocol: TCP
+          port: 8080

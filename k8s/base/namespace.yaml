@@ -1,0 +1,25 @@
+# Two namespaces separate durable state from untrusted, short-lived execution.
+# Both enforce the restricted Pod Security Standard, which is what makes
+# runAsNonRoot, seccompProfile, dropped capabilities and non-escalating
+# containers a cluster-enforced invariant instead of a convention.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-test-system
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-test-runners
+  labels:
+    app.kubernetes.io/part-of: parallel-ai-test-orchestrator
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
