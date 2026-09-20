@@ -1,0 +1,68 @@
+{
+  "name": "git-push-received",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-test/github-push",
+        "responseMode": "responseNode",
+        "options": { "rawBody": true }
+      },
+      "id": "push-webhook",
+      "name": "GitHub Push Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "ai-test-github-push-v1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst input = $input.first().json;\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst signature = String(headers['x-hub-signature-256'] || '').replace(/^sha256=/, '');\nconst raw = input.rawBody || JSON.stringify(body);\nconst expected = crypto.createHmac('sha256', $env.GITHUB_WEBHOOK_SECRET).update(raw).digest('hex');\nif (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) throw new Error('invalid GitHub signature');\nconst delivery = String(headers['x-github-delivery'] || '');\nif (!delivery) throw new Error('missing GitHub delivery ID');\nconst sha = String(body.after || '');\nif (!/^[0-9a-f]{40}$/.test(sha) || /^0+$/.test(sha)) throw new Error('push does not identify a full head SHA');\nconst head = (body.commits || []).find(c => c.id === sha) || body.head_commit;\nif (!head || head.id !== sha) throw new Error('head commit is absent from payload');\nconst lines = String(head.message || '').trimEnd().split(/\\r?\\n/);\nlet i = lines.length - 1; const trailers = {};\nwhile (i >= 0 && /^([A-Za-z0-9-]+):\\s*(.+)$/.test(lines[i])) { const m = lines[i].match(/^([A-Za-z0-9-]+):\\s*(.+)$/); if (trailers[m[1]]) throw new Error('duplicate commit trailer'); trailers[m[1]] = m[2].trim(); i--; }\nif (!/^atj_[a-f0-9]{32}$/.test(trailers['AI-Test-Job'] || '') || trailers['AI-Test-Phase'] !== 'verify') throw new Error('missing or invalid AI test trailers');\nconst repository = String(body.repository?.full_name || '').toLowerCase();\nconst branch = String(body.ref || '').replace(/^refs\\/heads\\//, '');\nconst allowed = String($env.AI_TEST_ALLOWED_REPOSITORIES || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean);\nif (!allowed.includes(repository)) throw new Error('repository is not allowlisted');\nreturn [{ json: { jobId: trailers['AI-Test-Job'], request: { repository: 'github.com/' + repository, branch, code_sha: sha, push_event_id: delivery } } }];"
+      },
+      "id": "push-auth",
+      "name": "Verify Signature and Footer",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.AI_TEST_GATEWAY_URL + '/api/v1/test-jobs/' + $json.jobId + '/verify'}}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Authorization", "value": "={{'Bearer ' + $env.AI_TEST_GATEWAY_TOKEN}}" },
+          { "name": "Content-Type", "value": "application/json" }
+        ] },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify($json.request)}}",
+        "options": { "timeout": 4000 }
+      },
+      "id": "verify-request",
+      "name": "Verify Exact SHA",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{$json}}", "options": { "responseCode": 202 } },
+      "id": "push-response",
+      "name": "Return 202",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [720, 0]
+    }
+  ],
+  "connections": {
+    "GitHub Push Webhook": { "main": [[{ "node": "Verify Signature and Footer", "type": "main", "index": 0 }]] },
+    "Verify Signature and Footer": { "main": [[{ "node": "Verify Exact SHA", "type": "main", "index": 0 }]] },
+    "Verify Exact SHA": { "main": [[{ "node": "Return 202", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "none" },
+  "versionId": "92f4cc21-e87a-45e5-93c0-4b29da1f3402",
+  "meta": { "templateCredsSetupCompleted": true },
+  "tags": []
+}

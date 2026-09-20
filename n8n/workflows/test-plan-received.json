@@ -1,0 +1,75 @@
+{
+  "name": "test-plan-received",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-test/plan",
+        "responseMode": "responseNode",
+        "options": { "rawBody": true }
+      },
+      "id": "plan-webhook",
+      "name": "Plan Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "ai-test-plan-v1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst input = $input.first().json;\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst timestamp = String(headers['x-ai-test-timestamp'] || '');\nconst signature = String(headers['x-ai-test-signature'] || '').replace(/^sha256=/, '');\nif (!/^\\d+$/.test(timestamp) || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) throw new Error('expired webhook timestamp');\nconst canonical = (v) => Array.isArray(v) ? '[' + v.map(canonical).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}' : JSON.stringify(v);\nconst raw = input.rawBody || canonical(body);\nconst expected = crypto.createHmac('sha256', $env.AI_TEST_PLAN_WEBHOOK_SECRET).update(timestamp + '.' + raw).digest('hex');\nif (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) throw new Error('invalid webhook signature');\nfor (const field of ['task_id','repository','branch','base_sha','plan','callback_url']) if (body[field] === undefined) throw new Error('missing field: ' + field);\nif (!/^[0-9a-f]{40}$/.test(body.base_sha)) throw new Error('base_sha must be a full SHA');\nconst digest = crypto.createHash('sha256').update(canonical(body.plan)).digest('hex');\nreturn [{ json: { request: body, idempotencyKey: body.task_id + ':' + body.base_sha + ':' + digest } }];"
+      },
+      "id": "plan-auth",
+      "name": "Authenticate and Normalize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.AI_TEST_GATEWAY_URL + '/api/v1/test-jobs/prepare'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{'Bearer ' + $env.AI_TEST_GATEWAY_TOKEN}}" },
+            { "name": "Idempotency-Key", "value": "={{$json.idempotencyKey}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{JSON.stringify($json.request)}}",
+        "options": { "timeout": 4000 }
+      },
+      "id": "prepare-request",
+      "name": "Prepare Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{$json}}",
+        "options": { "responseCode": 202 }
+      },
+      "id": "plan-response",
+      "name": "Return 202",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [720, 0]
+    }
+  ],
+  "connections": {
+    "Plan Webhook": { "main": [[{ "node": "Authenticate and Normalize", "type": "main", "index": 0 }]] },
+    "Authenticate and Normalize": { "main": [[{ "node": "Prepare Job", "type": "main", "index": 0 }]] },
+    "Prepare Job": { "main": [[{ "node": "Return 202", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "none" },
+  "versionId": "3f081e36-bd8e-4b19-b354-c8db0c45b201",
+  "meta": { "templateCredsSetupCompleted": true },
+  "tags": []
+}

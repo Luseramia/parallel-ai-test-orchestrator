@@ -1,0 +1,84 @@
+{
+  "name": "test-job-completed",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-test/completed",
+        "responseMode": "responseNode",
+        "options": { "rawBody": true }
+      },
+      "id": "completion-webhook",
+      "name": "Completion Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [0, 0],
+      "webhookId": "ai-test-completed-v1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst input = $input.first().json;\nconst headers = input.headers || {};\nconst body = input.body || input;\nconst timestamp = String(headers['x-ai-test-timestamp'] || '');\nconst signature = String(headers['x-ai-test-signature'] || '').replace(/^sha256=/, '');\nif (!/^\\d+$/.test(timestamp) || Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) throw new Error('expired completion timestamp');\nconst canonical = (v) => Array.isArray(v) ? '[' + v.map(canonical).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}' : JSON.stringify(v);\nconst raw = input.rawBody || canonical(body);\nconst expected = crypto.createHmac('sha256', $env.AI_TEST_COMPLETION_WEBHOOK_SECRET).update(timestamp + '.' + raw).digest('hex');\nif (signature.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) throw new Error('invalid completion signature');\nif (!body.job_id || !body.status || !body.message || !Object.prototype.hasOwnProperty.call(body, 'tested_sha')) throw new Error('invalid completion payload');\nconst deliveryKey = body.job_id + ':' + body.attempt + ':' + body.status + ':' + (body.code_sha || 'none');\nreturn [{ json: { ...body, deliveryKey } }];"
+      },
+      "id": "completion-auth",
+      "name": "Authenticate Completion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.AI_TEST_GATEWAY_URL + $json.status_url}}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Authorization", "value": "={{'Bearer ' + $env.AI_TEST_GATEWAY_TOKEN}}" }
+        ] },
+        "options": { "timeout": 4000 }
+      },
+      "id": "authoritative-result",
+      "name": "Fetch Authoritative Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.AI_TEST_NOTIFICATION_URL}}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [
+          { "name": "Authorization", "value": "={{'Bearer ' + $env.AI_TEST_NOTIFICATION_TOKEN}}" },
+          { "name": "Idempotency-Key", "value": "={{$('Authenticate Completion').item.json.deliveryKey}}" },
+          { "name": "Content-Type", "value": "application/json" }
+        ] },
+        "sendBody": true,
+        "contentType": "json",
+        "jsonBody": "={{ { key: $('Authenticate Completion').item.json.deliveryKey, job: $json, message: $('Authenticate Completion').item.json.message } }}",
+        "options": { "timeout": 10000 }
+      },
+      "id": "notify",
+      "name": "Send Idempotent Notification",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 0]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { accepted: true, key: $('Authenticate Completion').item.json.deliveryKey } }}", "options": { "responseCode": 202 } },
+      "id": "completion-response",
+      "name": "Acknowledge Delivery",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [960, 0]
+    }
+  ],
+  "connections": {
+    "Completion Webhook": { "main": [[{ "node": "Authenticate Completion", "type": "main", "index": 0 }]] },
+    "Authenticate Completion": { "main": [[{ "node": "Fetch Authoritative Result", "type": "main", "index": 0 }]] },
+    "Fetch Authoritative Result": { "main": [[{ "node": "Send Idempotent Notification", "type": "main", "index": 0 }]] },
+    "Send Idempotent Notification": { "main": [[{ "node": "Acknowledge Delivery", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1", "saveDataErrorExecution": "all", "saveDataSuccessExecution": "none" },
+  "versionId": "6da229aa-1c22-4557-be78-62ac96db0d9f",
+  "meta": { "templateCredsSetupCompleted": true },
+  "tags": []
+}
