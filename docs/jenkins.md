@@ -60,9 +60,9 @@ token.
 
 ## Before the first run
 
-1. Apply `parallel-ai-test-orchestrator/argocd-app.yaml` from
-   `k8s-project-helm` once. It points Argo CD at the application's directory
-   and enables automated sync.
+1. Apply `argocd/parallel-ai-test-orchestrator.yaml` from `k8s-project-helm`
+   once. The bootstrap manifest is outside the managed application directory,
+   so the Argo CD Application never reconciles or prunes itself.
 2. Populate the required Vault fields above. Argo CD manages the non-secret
    repository-policy ConfigMap.
 3. Confirm the Jenkins `kaniko` ServiceAccount can push to

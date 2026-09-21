@@ -418,8 +418,7 @@ SSHCFG
                                 set -eu
                                 /tmp/ai-test-ci-venv/bin/python \
                                   /ci-workspace/source/scripts/validate-kubernetes-manifests.py \
-                                  "/ci-workspace/deployment/${DEPLOYMENT_DIR}" \
-                                  --exclude argocd-app.yaml
+                                  "/ci-workspace/deployment/${DEPLOYMENT_DIR}"
                             '''
                         }
 
