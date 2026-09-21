@@ -22,6 +22,8 @@ kind: Deployment
 metadata:
   name: gateway
   namespace: ai-test-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
   labels:
     app.kubernetes.io/name: parallel-ai-test-gateway
     app.kubernetes.io/component: gateway

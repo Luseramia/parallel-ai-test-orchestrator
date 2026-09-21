@@ -8,7 +8,6 @@ from typing import Any
 
 import httpx
 import yaml
-
 from app.config import Settings
 from app.services.job_launcher import GenerateLaunch, PrepareLaunch, TestLaunch
 from app.services.kubernetes_launcher import KubernetesApiJobLauncher
@@ -271,6 +270,54 @@ class ManifestSecurityTests(unittest.TestCase):
             ["python", "-m", "app.reconcile"],
             job_spec["template"]["spec"]["containers"][0]["command"],
         )
+
+    def test_database_migration_is_a_hardened_sync_hook(self) -> None:
+        jobs = [
+            job
+            for job in self.by_kind["Job"]
+            if job["metadata"]["name"] == "gateway-database-migration"
+        ]
+        self.assertEqual(1, len(jobs))
+        job = jobs[0]
+        annotations = job["metadata"]["annotations"]
+        self.assertEqual("Sync", annotations["argocd.argoproj.io/hook"])
+        self.assertEqual("1", annotations["argocd.argoproj.io/sync-wave"])
+        self.assertIn(
+            "HookSucceeded",
+            annotations["argocd.argoproj.io/hook-delete-policy"],
+        )
+        self.assertLessEqual(job["spec"]["activeDeadlineSeconds"], 300)
+
+        deployment = self.by_kind["Deployment"][0]
+        cron = self.by_kind["CronJob"][0]
+        self.assertEqual(
+            "2",
+            deployment["metadata"]["annotations"][
+                "argocd.argoproj.io/sync-wave"
+            ],
+        )
+        self.assertEqual(
+            "2", cron["metadata"]["annotations"]["argocd.argoproj.io/sync-wave"]
+        )
+
+        pod = job["spec"]["template"]["spec"]
+        self.assertFalse(pod["automountServiceAccountToken"])
+        self.assertTrue(pod["securityContext"]["runAsNonRoot"])
+        self.assertEqual(
+            "RuntimeDefault",
+            pod["securityContext"]["seccompProfile"]["type"],
+        )
+        container = pod["containers"][0]
+        self.assertEqual(["alembic", "upgrade", "head"], container["command"])
+        self.assertFalse(
+            container["securityContext"]["allowPrivilegeEscalation"]
+        )
+        self.assertTrue(container["securityContext"]["readOnlyRootFilesystem"])
+        self.assertEqual(
+            ["ALL"], container["securityContext"]["capabilities"]["drop"]
+        )
+        self.assertIn("requests", container["resources"])
+        self.assertIn("limits", container["resources"])
 
     def test_example_secrets_carry_no_values_and_keep_workloads_separate(self) -> None:
         secrets = {

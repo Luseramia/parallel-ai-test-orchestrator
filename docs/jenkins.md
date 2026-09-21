@@ -51,12 +51,12 @@ Every successful build pushes one immutable tag (`BUILD_NUMBER`) for:
 - `parallel-ai-test-codex-runner`
 - `parallel-ai-test-runner`
 
-It updates the four runtime image references in
-`k8s-project-helm/parallel-ai-test-orchestrator` (gateway Deployment,
-reconciler CronJob, Codex runner, and credential-free test runner), validates
-the plain manifests, and pushes a `[skip ci]` commit. Argo CD observes that
-commit through its automated sync policy; Jenkins does not need an Argo CD API
-token.
+It updates the five runtime image references in
+`k8s-project-helm/parallel-ai-test-orchestrator` (gateway Deployment, database
+migration hook, reconciler CronJob, Codex runner, and credential-free test
+runner), validates the plain manifests, and pushes a `[skip ci]` commit. Argo
+CD observes that commit through its automated sync policy; Jenkins does not
+need an Argo CD API token.
 
 ## Before the first run
 

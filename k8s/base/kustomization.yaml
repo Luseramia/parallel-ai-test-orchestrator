@@ -9,6 +9,7 @@ resources:
   - network-policy.yaml
   - resource-quota.yaml
   - artifact-pvc.yaml
+  - database-migration-job.yaml
   - gateway.yaml
   - reconciler-cronjob.yaml
 # Deliberately not listed:

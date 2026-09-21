@@ -9,6 +9,8 @@ kind: CronJob
 metadata:
   name: reconciler
   namespace: ai-test-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
   labels:
     app.kubernetes.io/name: parallel-ai-test-gateway
     app.kubernetes.io/component: reconciler

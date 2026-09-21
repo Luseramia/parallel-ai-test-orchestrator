@@ -389,6 +389,7 @@ SSHCFG
 
                                 target_dir="/ci-workspace/deployment/${DEPLOYMENT_DIR}"
                                 test -f "${target_dir}/gateway.yaml"
+                                test -f "${target_dir}/database-migration-job.yaml"
                                 test -f "${target_dir}/reconciler-cronjob.yaml"
 
                                 gateway_ref="${REGISTRY}/${GATEWAY_IMAGE}:${IMAGE_TAG}"
@@ -398,6 +399,7 @@ SSHCFG
                                 sed -i -E \
                                   "s|image: [^[:space:]]*parallel-ai-test-gateway:[^[:space:]]*|image: ${gateway_ref}|g" \
                                   "${target_dir}/gateway.yaml" \
+                                  "${target_dir}/database-migration-job.yaml" \
                                   "${target_dir}/reconciler-cronjob.yaml"
                                 sed -i -E \
                                   "/name: CODEX_RUNNER_IMAGE/{n;s|value: [^[:space:]]+|value: ${codex_ref}|;}" \
@@ -407,6 +409,7 @@ SSHCFG
                                   "${target_dir}/gateway.yaml"
 
                                 grep -F "image: ${gateway_ref}" "${target_dir}/gateway.yaml"
+                                grep -F "image: ${gateway_ref}" "${target_dir}/database-migration-job.yaml"
                                 grep -F "image: ${gateway_ref}" "${target_dir}/reconciler-cronjob.yaml"
                                 grep -F "value: ${codex_ref}" "${target_dir}/gateway.yaml"
                                 grep -F "value: ${test_ref}" "${target_dir}/gateway.yaml"
