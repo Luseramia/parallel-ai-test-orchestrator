@@ -103,12 +103,11 @@ spec:
       ports:
         - protocol: TCP
           port: 443
-    # PostgreSQL. Replace the namespace label or swap in an ipBlock when the
-    # database is managed outside the cluster.
+    # PostgreSQL runs outside the cluster on the existing database host.
+    # Keep this as a single-host rule rather than opening the whole LAN.
     - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: postgres
+        - ipBlock:
+            cidr: 192.168.1.44/32
       ports:
         - protocol: TCP
           port: 5432

@@ -56,7 +56,7 @@ and the test suite fails.
 | File | Field | Why |
 | --- | --- | --- |
 | `base/network-policy.yaml` | `gateway-egress` API server `ipBlock` (`10.0.0.1/32`) | Must be the real control plane endpoint from `kubectl get endpoints kubernetes -n default` |
-| `base/network-policy.yaml` | PostgreSQL peer | Namespace selector, or an `ipBlock` when the database is managed outside the cluster |
+| `base/network-policy.yaml` | PostgreSQL peer | Restricted to the existing external database host `192.168.1.44/32` on port 5432 |
 | `base/gateway.yaml`, `base/reconciler-cronjob.yaml` | `image:` | CI writes an immutable build-number tag; `latest` is a placeholder |
 | `base/gateway.yaml` | `CALLBACK_ALLOWED_HOSTS` | The n8n host that may receive completion callbacks |
 | `base/artifact-pvc.yaml` | `storage`, StorageClass | Sized for the retention window in `ARTIFACT_RETENTION_DAYS` |
