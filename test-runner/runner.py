@@ -79,6 +79,7 @@ class RunnerConfiguration:
     coverage_globs: list[str]
     allow_skipped_required_tests: bool
     max_log_bytes: int
+    precloned_repository: Path | None = None
     artifact_gateway_url: str | None = None
     patch_object_key: str | None = None
 
@@ -94,12 +95,37 @@ def sanitized_test_environment(source: dict[str, str] | None = None) -> dict[str
     return clean
 
 
-def checkout_exact_sha(clone_url: str, code_sha: str, parent: Path) -> Path:
+def checkout_exact_sha(
+    clone_url: str,
+    code_sha: str,
+    parent: Path,
+    precloned_repository: Path | None = None,
+) -> Path:
     if not FULL_SHA.fullmatch(code_sha):
         raise RunnerError("POLICY_VIOLATION", "checkout requires a full Git SHA")
-    workspace = parent / "repository"
     git_environment = sanitized_test_environment()
     git_environment["GIT_TERMINAL_PROMPT"] = "0"
+    if precloned_repository is not None:
+        workspace = precloned_repository.resolve()
+        if not workspace.is_dir():
+            raise RunnerError(
+                "ENVIRONMENT_FAILED", "pre-cloned repository is missing"
+            )
+        actual = run_checked(
+            ["git", "-C", str(workspace), "rev-parse", "HEAD"],
+            cwd=parent,
+            timeout_seconds=10,
+            environment=git_environment,
+            failure_class="ENVIRONMENT_FAILED",
+        ).strip()
+        if actual != code_sha:
+            raise RunnerError(
+                "ENVIRONMENT_FAILED",
+                "pre-cloned repository SHA does not match code SHA",
+            )
+        return workspace
+
+    workspace = parent / "repository"
     run_checked(
         [
             "git",
@@ -342,7 +368,10 @@ def run(configuration: RunnerConfiguration) -> dict[str, Any]:
                 configuration.patch_path,
             )
         workspace = checkout_exact_sha(
-            configuration.clone_url, configuration.code_sha, Path(directory)
+            configuration.clone_url,
+            configuration.code_sha,
+            Path(directory),
+            configuration.precloned_repository,
         )
         verify_and_apply_patch(configuration, workspace)
         results = execute_commands(configuration, workspace)
@@ -641,6 +670,9 @@ def load_configuration() -> RunnerConfiguration:
         coverage_globs=policy.get("coverage_globs", []),
         allow_skipped_required_tests=policy.get("allow_skipped_required_tests", False),
         max_log_bytes=int(policy.get("max_log_bytes", 10_485_760)),
+        precloned_repository=(
+            Path(value) if (value := os.getenv("PRECLONED_REPOSITORY")) else None
+        ),
         artifact_gateway_url=artifact_gateway_url,
         patch_object_key=(
             required("PATCH_OBJECT_KEY") if artifact_gateway_url else None

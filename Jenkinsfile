@@ -187,6 +187,8 @@ SSHCFG
                                 test -f gateway/Dockerfile
                                 test -f codex-runner/Dockerfile
                                 test -f test-runner/Dockerfile
+                                test -f runner-common/clone-repository.sh
+                                sh -n runner-common/clone-repository.sh
                                 test -f gateway/requirements-dev.lock
                                 test -f codex-runner/package-lock.json
                                 test -f k8s/base/kustomization.yaml
@@ -330,10 +332,14 @@ SSHCFG
                                 apply_secret_with_retry ai-test-runners ai-test-codex-auth \
                                   --from-file=api-key="${VAULT_SECRET_DIR}/ai-test-openai-api-key"
 
+                                apply_secret_with_retry ai-test-runners ai-test-git-read \
+                                  --from-file=token="${VAULT_SECRET_DIR}/ai-test-github-read-token"
+
                                 kubectl -n ai-test-system get secret ai-test-gateway >/dev/null
                                 kubectl -n ai-test-runners get secret ai-test-codex-callback >/dev/null
                                 kubectl -n ai-test-runners get secret ai-test-test-callback >/dev/null
                                 kubectl -n ai-test-runners get secret ai-test-codex-auth >/dev/null
+                                kubectl -n ai-test-runners get secret ai-test-git-read >/dev/null
                                 echo 'Runtime Secrets applied from Vault'
                             '''
                         }

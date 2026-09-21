@@ -77,7 +77,7 @@ docker build -f test-runner/Dockerfile  -t parallel-ai-test-runner:$BUILD .
 
 For the Jenkins/Argo CD deployment, populate the Vault fields listed in
 [`docs/jenkins.md`](../docs/jenkins.md#jenkins-credentials). Jenkins creates
-the four runtime Secrets below from Vault, while Argo CD applies the remaining
+the five runtime Secrets below from Vault, while Argo CD applies the remaining
 resources from `k8s-project-helm`.
 
 The commands below are the manual-development alternative:
@@ -99,6 +99,8 @@ kubectl create secret generic ai-test-test-callback -n ai-test-runners \
   --from-literal=token=<same value as test-runner-token>
 kubectl create secret generic ai-test-codex-auth -n ai-test-runners \
   --from-literal=api-key=...
+kubectl create secret generic ai-test-git-read -n ai-test-runners \
+  --from-literal=token=<read-only GitHub token>
 kubectl create configmap ai-test-repository-policies -n ai-test-system \
   --from-file=repository-policies.yaml=../config/repository-policies.yaml
 kubectl apply -k base/

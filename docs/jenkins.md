@@ -33,8 +33,9 @@ these fields to that Vault secret:
 
 After manifest validation, Jenkins builds the Kubernetes Secrets directly from
 those injected files and applies `ai-test-gateway` in
-`ai-test-system` plus the two callback Secrets and `ai-test-codex-auth` in
-`ai-test-runners`. Secret values stay in the Vault-injected files and are not
+`ai-test-system` plus the two callback Secrets, `ai-test-codex-auth`, and the
+read-only `ai-test-git-read` clone Secret in `ai-test-runners`. Secret values
+stay in the Vault-injected files and are not
 copied into Groovy variables, console output, Git, or image layers. The
 `kaniko` ServiceAccount therefore needs namespaced Secret write access in both
 namespaces. The deployment repository supplies that access through

@@ -33,6 +33,40 @@ spec:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
+      initContainers:
+        - name: git-clone
+          image: __CODEX_RUNNER_IMAGE__
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "/runner/clone-repository.sh"]
+          env:
+            - name: GIT_CLONE_URL
+              value: __CLONE_URL__
+            - name: GIT_SHA
+              value: __CODE_SHA__
+            - name: PRECLONED_REPOSITORY
+              value: /workspace/repository
+            - name: GIT_READ_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: __GIT_READ_SECRET__
+                  key: token
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: workspace
+              mountPath: /workspace
+            - name: clone-tmp
+              mountPath: /tmp
       containers:
         - name: runner
           image: __CODEX_RUNNER_IMAGE__
@@ -45,6 +79,8 @@ spec:
               value: __TASK_ID__
             - name: GIT_CLONE_URL
               value: __CLONE_URL__
+            - name: PRECLONED_REPOSITORY
+              value: /workspace/repository
             - name: BASE_SHA
               value: __BASE_SHA__
             - name: ATTEMPT
@@ -96,6 +132,8 @@ spec:
               mountPath: /artifacts
             - name: tmp
               mountPath: /tmp
+            - name: workspace
+              mountPath: /workspace
       volumes:
         - name: artifacts
           emptyDir:
@@ -103,3 +141,9 @@ spec:
         - name: tmp
           emptyDir:
             sizeLimit: 2Gi
+        - name: workspace
+          emptyDir:
+            sizeLimit: 2Gi
+        - name: clone-tmp
+          emptyDir:
+            sizeLimit: 16Mi

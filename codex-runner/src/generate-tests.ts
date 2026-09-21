@@ -36,6 +36,7 @@ export interface GenerateConfiguration {
   timeoutMs: number;
   attempt: number;
   patchPolicy: PatchPolicy;
+  preclonedRepository?: string;
   artifactGateway?: ArtifactGateway;
   planObjectKey?: string;
   draftObjectKey?: string;
@@ -74,6 +75,7 @@ export async function runGenerate(configuration: GenerateConfiguration): Promise
       configuration.cloneUrl,
       configuration.codeSha,
       controller.signal,
+      configuration.preclonedRepository,
     );
     const prompt = await assembleGeneratePrompt(
       configuration.promptPath,
@@ -141,7 +143,9 @@ export async function runGenerate(configuration: GenerateConfiguration): Promise
   } finally {
     process.removeListener("SIGTERM", abort);
     process.removeListener("SIGINT", abort);
-    if (workspace) await rm(resolve(workspace, ".."), { recursive: true, force: true });
+    if (workspace && !configuration.preclonedRepository) {
+      await rm(resolve(workspace, ".."), { recursive: true, force: true });
+    }
   }
 }
 
@@ -235,6 +239,8 @@ export function loadGenerateConfiguration(): GenerateConfiguration {
     patchPolicy: JSON.parse(required("PATCH_POLICY_JSON")) as PatchPolicy,
   };
   const artifactGatewayUrl = process.env.ARTIFACT_GATEWAY_URL;
+  const preclonedRepository = process.env.PRECLONED_REPOSITORY;
+  if (preclonedRepository) configuration.preclonedRepository = preclonedRepository;
   if (artifactGatewayUrl) {
     configuration.artifactGateway = {
       baseUrl: artifactGatewayUrl,

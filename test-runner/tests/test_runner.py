@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
@@ -86,6 +87,24 @@ class TestRunnerTests(unittest.TestCase):
         self.assertEqual("FAILED", result["status"])
         self.assertEqual("TEST_ASSERTION_FAILED", result["failures"][0]["class"])
 
+    def test_precloned_workspace_avoids_runner_clone_credentials(self) -> None:
+        patch = self._create_patch(
+            "tests/test_value.py",
+            "import unittest\n\n"
+            "class ValueTests(unittest.TestCase):\n"
+            "    def test_value(self):\n"
+            "        self.assertEqual(1, __import__('value').VALUE)\n",
+        )
+        configuration = replace(
+            self._configuration(patch),
+            clone_url="https://clone-must-not-run.invalid/repository.git",
+            precloned_repository=self.source,
+        )
+
+        result = run(configuration)
+
+        self.assertEqual("PASSED", result["status"])
+
     def test_command_timeout_is_classified(self) -> None:
         patch = self._create_patch(
             "tests/test_value.py", "def test_placeholder():\n    pass\n"
@@ -155,12 +174,14 @@ class TestRunnerTests(unittest.TestCase):
                 "OPENAI_API_KEY": "secret",
                 "RUNNER_TOKEN": "secret",
                 "GITHUB_TOKEN": "secret",
+                "GIT_READ_TOKEN": "secret",
             }
         )
         self.assertEqual("safe-path", clean["PATH"])
         self.assertNotIn("OPENAI_API_KEY", clean)
         self.assertNotIn("RUNNER_TOKEN", clean)
         self.assertNotIn("GITHUB_TOKEN", clean)
+        self.assertNotIn("GIT_READ_TOKEN", clean)
 
     def test_junit_parser_counts_pass_fail_and_skip(self) -> None:
         report = self.root / "reports" / "junit.xml"

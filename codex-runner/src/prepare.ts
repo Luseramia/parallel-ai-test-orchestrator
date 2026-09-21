@@ -23,6 +23,7 @@ export interface Configuration {
   promptPath: string;
   timeoutMs: number;
   attempt: number;
+  preclonedRepository?: string;
   artifactGateway?: ArtifactGateway;
   planObjectKey?: string;
 }
@@ -52,6 +53,7 @@ export async function runPrepare(configuration: Configuration): Promise<void> {
       configuration.cloneUrl,
       configuration.baseSha,
       controller.signal,
+      configuration.preclonedRepository,
     );
     const prompt = await assemblePreparePrompt(
       configuration.promptPath,
@@ -103,7 +105,9 @@ export async function runPrepare(configuration: Configuration): Promise<void> {
   } finally {
     process.removeListener("SIGTERM", abort);
     process.removeListener("SIGINT", abort);
-    if (workspace) await rm(resolve(workspace, ".."), { recursive: true, force: true });
+    if (workspace && !configuration.preclonedRepository) {
+      await rm(resolve(workspace, ".."), { recursive: true, force: true });
+    }
   }
 }
 
@@ -151,6 +155,8 @@ function loadConfiguration(): Configuration {
     attempt: Number(process.env.ATTEMPT ?? "1"),
   };
   const artifactGatewayUrl = process.env.ARTIFACT_GATEWAY_URL;
+  const preclonedRepository = process.env.PRECLONED_REPOSITORY;
+  if (preclonedRepository) configuration.preclonedRepository = preclonedRepository;
   if (artifactGatewayUrl) {
     configuration.artifactGateway = {
       baseUrl: artifactGatewayUrl,

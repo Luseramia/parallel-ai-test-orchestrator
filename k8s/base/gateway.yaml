@@ -77,6 +77,8 @@ spec:
               value: parallel-ai-test-runner:latest
             - name: CODEX_SECRET_NAME
               value: ai-test-codex-auth
+            - name: GIT_READ_SECRET_NAME
+              value: ai-test-git-read
             - name: CODEX_TOKEN_SECRET_NAME
               value: ai-test-codex-callback
             - name: TEST_TOKEN_SECRET_NAME

@@ -225,9 +225,12 @@ gateway and in the n8n workflow together; deliveries signed with the old secret
 are rejected, but they stay `PENDING` and are retried, so a short mismatch is
 survivable.
 
-**Git read credential.** Replace the Secret in `ai-test-runners` only. It must
-never be the same identity as the bot that opens pull requests, which lives with
-n8n.
+**Git read credential.** Replace `github-read-token` in `ai-test-gateway` and
+the `token` key in `ai-test-git-read` together. Jenkins normally renders both
+from `AI_TEST_GITHUB_READ_TOKEN` in Vault. Only the clone init container mounts
+`ai-test-git-read`; the runner receives the checked-out workspace without that
+credential. It must never be the same identity as the bot that opens pull
+requests, which lives with n8n.
 
 After any rotation, re-run the [post-deploy checks](#after-every-deploy).
 

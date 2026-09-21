@@ -75,6 +75,8 @@ class KubernetesApiJobLauncher:
             command=["node", "/runner/dist/src/prepare.js"],
             env=env,
             model_credentials=True,
+            clone_url=request.clone_url,
+            checkout_sha=request.base_sha,
         )
         return self._create_job(name, request.job_id, manifest)
 
@@ -116,6 +118,8 @@ class KubernetesApiJobLauncher:
             env=env,
             model_credentials=True,
             code_sha=request.code_sha,
+            clone_url=request.clone_url,
+            checkout_sha=request.code_sha,
         )
         return self._create_job(name, request.job_id, manifest)
 
@@ -153,6 +157,8 @@ class KubernetesApiJobLauncher:
             env=env,
             model_credentials=False,
             code_sha=request.code_sha,
+            clone_url=request.clone_url,
+            checkout_sha=request.code_sha,
         )
         return self._create_job(name, request.job_id, manifest)
 
@@ -205,6 +211,8 @@ class KubernetesApiJobLauncher:
         command: list[str],
         env: list[dict[str, Any]],
         model_credentials: bool,
+        clone_url: str,
+        checkout_sha: str,
         code_sha: str | None = None,
     ) -> dict[str, Any]:
         labels = {
@@ -230,11 +238,47 @@ class KubernetesApiJobLauncher:
         volumes: list[dict[str, Any]] = [
             {"name": "artifacts", "emptyDir": {"sizeLimit": "256Mi"}},
             {"name": "tmp", "emptyDir": {"sizeLimit": "2Gi"}},
+            {"name": "workspace", "emptyDir": {"sizeLimit": "2Gi"}},
+            {"name": "clone-tmp", "emptyDir": {"sizeLimit": "16Mi"}},
         ]
         mounts = [
             {"name": "artifacts", "mountPath": "/artifacts"},
             {"name": "tmp", "mountPath": "/tmp"},
+            {"name": "workspace", "mountPath": "/workspace"},
         ]
+        clone_container = {
+            "name": "git-clone",
+            "image": image,
+            "imagePullPolicy": "IfNotPresent",
+            "command": ["/bin/sh", "/runner/clone-repository.sh"],
+            "env": [
+                self._plain_env("GIT_CLONE_URL", clone_url),
+                self._plain_env("GIT_SHA", checkout_sha),
+                self._plain_env("PRECLONED_REPOSITORY", "/workspace/repository"),
+                {
+                    "name": "GIT_READ_TOKEN",
+                    "valueFrom": {
+                        "secretKeyRef": {
+                            "name": self._settings.git_read_secret_name,
+                            "key": "token",
+                        }
+                    },
+                },
+            ],
+            "resources": {
+                "requests": {"cpu": "50m", "memory": "64Mi"},
+                "limits": {"cpu": "500m", "memory": "256Mi"},
+            },
+            "securityContext": {
+                "allowPrivilegeEscalation": False,
+                "readOnlyRootFilesystem": True,
+                "capabilities": {"drop": ["ALL"]},
+            },
+            "volumeMounts": [
+                {"name": "workspace", "mountPath": "/workspace"},
+                {"name": "clone-tmp", "mountPath": "/tmp"},
+            ],
+        }
         return {
             "apiVersion": "batch/v1",
             "kind": "Job",
@@ -253,6 +297,7 @@ class KubernetesApiJobLauncher:
                             "runAsNonRoot": True,
                             "seccompProfile": {"type": "RuntimeDefault"},
                         },
+                        "initContainers": [clone_container],
                         "containers": [
                             {
                                 "name": "runner",
@@ -291,6 +336,7 @@ class KubernetesApiJobLauncher:
             self._plain_env("JOB_ID", job_id),
             self._plain_env("TASK_ID", task_id),
             self._plain_env("GIT_CLONE_URL", clone_url),
+            self._plain_env("PRECLONED_REPOSITORY", "/workspace/repository"),
             self._plain_env("BASE_SHA", base_sha),
             self._plain_env("ATTEMPT", str(attempt)),
             self._plain_env("ARTIFACT_ROOT", "/artifacts"),

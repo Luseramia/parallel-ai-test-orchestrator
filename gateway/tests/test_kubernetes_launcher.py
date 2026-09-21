@@ -75,6 +75,7 @@ class KubernetesApiJobLauncherTests(unittest.TestCase):
         manifest = json.loads(request.content)
         pod = manifest["spec"]["template"]["spec"]
         container = pod["containers"][0]
+        clone_container = pod["initContainers"][0]
 
         self.assertIn("/namespaces/ai-test-runners/jobs", str(request.url))
         self.assertEqual(name, manifest["metadata"]["name"])
@@ -86,6 +87,14 @@ class KubernetesApiJobLauncherTests(unittest.TestCase):
         env = {item["name"]: item for item in container["env"]}
         self.assertIn("OPENAI_API_KEY", env)
         self.assertIn("secretKeyRef", env["RUNNER_TOKEN"]["valueFrom"])
+        clone_env = {item["name"]: item for item in clone_container["env"]}
+        self.assertEqual("git-clone", clone_container["name"])
+        self.assertEqual("b" * 40, clone_env["GIT_SHA"]["value"])
+        self.assertEqual(
+            "ai-test-git-read",
+            clone_env["GIT_READ_TOKEN"]["valueFrom"]["secretKeyRef"]["name"],
+        )
+        self.assertNotIn("GIT_READ_TOKEN", env)
 
     def test_test_runner_has_no_model_credentials(self) -> None:
         self.launcher.launch_test(
@@ -105,9 +114,14 @@ class KubernetesApiJobLauncherTests(unittest.TestCase):
         manifest = json.loads(self.requests[-1].content)
         pod = manifest["spec"]["template"]["spec"]
         env = {item["name"] for item in pod["containers"][0]["env"]}
+        clone_env = {
+            item["name"] for item in pod["initContainers"][0]["env"]
+        }
         self.assertEqual("test-runner", pod["serviceAccountName"])
         self.assertNotIn("OPENAI_API_KEY", env)
         self.assertNotIn("CODEX_API_KEY", env)
+        self.assertNotIn("GIT_READ_TOKEN", env)
+        self.assertIn("GIT_READ_TOKEN", clone_env)
         self.assertFalse(pod["automountServiceAccountToken"])
 
     def test_generate_uses_exact_sha_and_serialized_patch_policy(self) -> None:

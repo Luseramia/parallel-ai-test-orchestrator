@@ -10,6 +10,7 @@ RUN apt-get update \
 RUN useradd --create-home --uid 10001 runner
 WORKDIR /runner
 COPY test-runner/runner.py /runner/runner.py
+COPY runner-common/clone-repository.sh /runner/clone-repository.sh
 USER 10001:10001
 ENTRYPOINT ["python", "/runner/runner.py"]
 

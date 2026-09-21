@@ -343,6 +343,10 @@ class ManifestSecurityTests(unittest.TestCase):
         )
         self.assertNotIn("api-key", secrets["ai-test-test-callback"]["stringData"])
         self.assertNotIn("api-key", secrets["ai-test-gateway"]["stringData"])
+        self.assertEqual(
+            RUNNER_NAMESPACE, secrets["ai-test-git-read"]["metadata"]["namespace"]
+        )
+        self.assertEqual({"token"}, set(secrets["ai-test-git-read"]["stringData"]))
 
     def test_kustomization_excludes_the_opt_in_and_example_manifests(self) -> None:
         kustomization = yaml.safe_load(
@@ -462,6 +466,25 @@ class JobTemplateConformanceTests(unittest.TestCase):
         self.assertIn("OPENAI_API_KEY", secret_names["codex-generate-job"])
         self.assertNotIn("OPENAI_API_KEY", secret_names["test-runner-job"])
 
+    def test_git_credential_is_confined_to_clone_init_containers(self) -> None:
+        for template_name in (
+            "codex-prepare-job.yaml",
+            "codex-generate-job.yaml",
+            "test-runner-job.yaml",
+        ):
+            pod = self.template(template_name)["spec"]["template"]["spec"]
+            self.assertEqual(1, len(pod["initContainers"]), template_name)
+            clone = pod["initContainers"][0]
+            clone_env = {item["name"]: item for item in clone["env"]}
+            runner_env = {item["name"] for item in pod["containers"][0]["env"]}
+            self.assertEqual("git-clone", clone["name"])
+            self.assertEqual(
+                "ai-test-git-read",
+                clone_env["GIT_READ_TOKEN"]["valueFrom"]["secretKeyRef"]["name"],
+            )
+            self.assertNotIn("GIT_READ_TOKEN", runner_env)
+            self.assertIn("PRECLONED_REPOSITORY", runner_env)
+
     def test_callback_secrets_are_separate_per_workload_type(self) -> None:
         codex = self.env_secret("codex-generate-job.yaml", "RUNNER_TOKEN")
         test = self.env_secret("test-runner-job.yaml", "RUNNER_TOKEN")
@@ -508,6 +531,7 @@ class JobTemplateConformanceTests(unittest.TestCase):
             "__CODEX_CALLBACK_SECRET__": self.settings.codex_callback_secret_name,
             "__TEST_CALLBACK_SECRET__": self.settings.test_callback_secret_name,
             "__CODEX_SECRET__": self.settings.codex_secret_name,
+            "__GIT_READ_SECRET__": self.settings.git_read_secret_name,
             "__ACTIVE_DEADLINE_SECONDS__": str(
                 self.settings.runner_active_deadline_seconds
             ),

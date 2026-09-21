@@ -35,6 +35,7 @@ class Settings:
     artifact_pvc_name: str = "ai-test-artifacts"
     runner_token_secret_name: str = "ai-test-runner-callback"
     codex_secret_name: str = "ai-test-codex-auth"
+    git_read_secret_name: str = "ai-test-git-read"
     runner_active_deadline_seconds: int = 1800
     runner_ttl_seconds: int = 3600
     # Callback credentials are separated per workload type so one can be
@@ -141,6 +142,9 @@ class Settings:
                 "RUNNER_TOKEN_SECRET_NAME", "ai-test-runner-callback"
             ),
             codex_secret_name=os.getenv("CODEX_SECRET_NAME", "ai-test-codex-auth"),
+            git_read_secret_name=os.getenv(
+                "GIT_READ_SECRET_NAME", "ai-test-git-read"
+            ),
             runner_active_deadline_seconds=int(
                 os.getenv("RUNNER_ACTIVE_DEADLINE_SECONDS", "1800")
             ),

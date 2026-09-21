@@ -43,3 +43,48 @@ test("checkoutExactSha rejects abbreviated SHAs", async () => {
   );
 });
 
+test("checkoutExactSha accepts a verified pre-cloned repository", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "codex-precloned-test-"));
+  const source = join(directory, "repository");
+  try {
+    execFileSync("git", ["init", source]);
+    execFileSync("git", ["-C", source, "config", "user.email", "tests@example.test"]);
+    execFileSync("git", ["-C", source, "config", "user.name", "Runner Tests"]);
+    await writeFile(join(source, "value.txt"), "private repository checkout");
+    execFileSync("git", ["-C", source, "add", "value.txt"]);
+    execFileSync("git", ["-C", source, "commit", "-m", "private checkout"]);
+    const sha = execFileSync("git", ["-C", source, "rev-parse", "HEAD"], {
+      encoding: "utf8",
+    }).trim();
+
+    const checkout = await checkoutExactSha("unused", sha, undefined, source);
+
+    assert.equal(checkout, source);
+    assert.equal(
+      await readFile(join(checkout, "value.txt"), "utf8"),
+      "private repository checkout",
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("checkoutExactSha rejects a pre-cloned repository at another SHA", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "codex-precloned-mismatch-"));
+  const source = join(directory, "repository");
+  try {
+    execFileSync("git", ["init", source]);
+    execFileSync("git", ["-C", source, "config", "user.email", "tests@example.test"]);
+    execFileSync("git", ["-C", source, "config", "user.name", "Runner Tests"]);
+    await writeFile(join(source, "value.txt"), "value");
+    execFileSync("git", ["-C", source, "add", "value.txt"]);
+    execFileSync("git", ["-C", source, "commit", "-m", "commit"]);
+
+    await assert.rejects(
+      checkoutExactSha("unused", "f".repeat(40), undefined, source),
+      /pre-cloned repository SHA does not match/u,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
