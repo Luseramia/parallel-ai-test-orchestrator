@@ -88,7 +88,7 @@ spec:
             - name: RUNNER_TTL_SECONDS
               value: "3600"
             - name: CALLBACK_ALLOWED_HOSTS
-              value: n8n.n8n.svc.cluster.local
+              value: n8n.n8n.svc.cluster.local,n8n.tarchunk.win
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
